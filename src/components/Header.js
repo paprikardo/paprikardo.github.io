@@ -1,10 +1,11 @@
 import React from "react";
-import { Typography, Avatar, Grid, Box } from "@mui/material";
+import { Typography, Grid } from "@mui/material";
 import Typed from "react-typed";
-import profile from "../profile_masked.png";
+
+const avatar = "/profile.png";
 
 const brightColor = "#f0f6ff";
-const myBlue = "#288bbd";
+//const myBlue = "#288bbd";
 
 const Header = (props) => {
   return (
@@ -12,9 +13,9 @@ const Header = (props) => {
       container
       direction="column"
       alignItems="center"
-      justifyContent="center"
+      justifyContent="flex-start"
       spacing={4}
-      style={{ width: "100vw",  marginTop: "20px"}}
+      style={{ width: "100vw", height: "70vh", marginTop: "20px" }}
     >
       <Grid
         item
@@ -27,53 +28,80 @@ const Header = (props) => {
         <img
           style={{
             width: "80%",
-            maxWidth:"400px",
+            maxWidth: "400px",
             borderRadius: "10%",
             border: "4px solid black",
+            backdropFilter: "blur(4px)",
           }}
-          src={profile}
+          src={avatar}
           alt=""
         ></img>
       </Grid>
-      <Grid item container direction="column" justifyItems="center">
+      <Grid
+        item
+        container
+        direction="column"
+        justifyItems="center"
+        style={{ backdropFilter: "blur(2px)" }}
+      >
         <Grid item>
           <Typography
-            style={{ color: myBlue, textAlign: "center" }}
-            variant="h3"
+            style={{
+              color: brightColor,
+              textAlign: "center",
+              fontFamily: ["Times", "Times New Roman", "serif"],
+            }}
+            variant="h4"
           >
             <Typed
               typeSpeed={80}
               backSpeed={100}
               showCursor={false}
-              backDelay={6000}
+              backDelay={5000}
               loop
               strings={["Hello!", "Hallo!", "Hola!"]}
             ></Typed>
           </Typography>
         </Grid>
         <Grid item>
-          <Typography variant="h4" style={{textAlign: "center" }}>
+          <Typography
+            variant="h4"
+            style={{
+              textAlign: "center",
+              fontFamily: ["Times", "Times New Roman", "serif"],
+              color: brightColor,
+            }}
+          >
             <Typed
               typeSpeed={80}
               backSpeed={100}
               showCursor={false}
-              backDelay={6000}
+              backDelay={3000}
               loop
-              strings={["I am","Ich bin", "Yo soy" ]}
+              strings={[
+                "I am Ricardo Heinzmann",
+                "Ich bin Ricardo Heinzmann",
+                "Yo soy Ricardo Heinzmann",
+              ]}
             ></Typed>
           </Typography>
         </Grid>
         <Grid item>
           <Typography
-            style={{ color: myBlue, textAlign: "center" }}
+            style={{
+              color: brightColor,
+              textAlign: "center",
+              fontFamily: ["Courier New", "Lucida Console"],
+            }}
             variant="h4"
           >
             <Typed
-              typeSpeed={30}
-              backSpeed={60}
+              typeSpeed={80}
+              backSpeed={100}
               showCursor={false}
+              backDelay={3000}
               loop
-              strings={["Ricardo Heinzmann", "Data Engineer at Accenture"]}
+              strings={["Data Engineer at Accenture"]}
             ></Typed>
           </Typography>
         </Grid>

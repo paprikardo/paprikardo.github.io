@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import {
   AppBar,
   Toolbar,
-  ListItem,
   IconButton,
   ListItemText,
   Avatar,
@@ -14,19 +13,15 @@ import {
   ListItemButton,
   Drawer,
 } from "@mui/material";
-import {
-  ArrowBack,
-  AssignmentInd,
-  Home,
-  Apps,
-  ContactMail,
-} from "@material-ui/icons";
+import { AssignmentInd, Home, Apps, Menu } from "@material-ui/icons";
+import BoyIcon from '@mui/icons-material/Boy';
 import { makeStyles } from "@material-ui/core";
-import { color } from "@mui/system";
-import avatar from "../profile.jpeg";
+import { Link } from "react-router-dom";
 
 const brightColor = "#f0f6ff";
 const myBlue = "#288bbd";
+const avatar = "/profile.jpeg";
+const resume = "/LebenslaufSept2023.pdf";
 
 //CSS STYLES
 const useStyles = makeStyles((theme) => ({
@@ -48,9 +43,9 @@ const useStyles = makeStyles((theme) => ({
 }));
 
 const menuItems = [
-  { listIcon: <Home />, listText: "Home" },
+  { listIcon: <Home />, listText: "Home", component: Link, listPath: "/" },
   { listIcon: <AssignmentInd />, listText: "Resume" },
-  { listIcon: <Apps />, listText: "Others" },
+  { listIcon: <Apps />, listText: "Others", listPath: "" },
 ];
 
 const Navbar = (props) => {
@@ -64,19 +59,45 @@ const Navbar = (props) => {
         className={classes.avatar}
         src={avatar}
         alt="Ricardo Heinzmann"
-        onClick={()=>setSidebarShown(false)}
+        onClick={() => setSidebarShown(false)}
       ></Avatar>
       <Divider />
       <List>
-        {menuItems.map((lsItem, key) => (
-          <ListItemButton key={key}>
-            <ListItemIcon key={key + "icon"}>{lsItem.listIcon}</ListItemIcon>
-            <ListItemText
-              primary={lsItem.listText}
-              key={key + "text"}
-            ></ListItemText>
-          </ListItemButton>
-        ))}
+        <ListItemButton
+          component={Link}
+          to={"/"}
+          onClick={() => setSidebarShown(false)}
+        >
+          <ListItemIcon>
+            <Home />
+          </ListItemIcon>
+          <ListItemText primary={"Home"}></ListItemText>
+        </ListItemButton>
+        <Divider />
+        <ListItemButton
+          onClick={() => {
+            setSidebarShown(false);
+            window.location = resume;
+          }}
+        >
+          <ListItemIcon>
+            <AssignmentInd />
+          </ListItemIcon>
+          <ListItemText primary={"Resume"}></ListItemText>
+        </ListItemButton>
+        <Divider />
+        <ListItemButton
+          component={Link}
+          to={"/lifetime"}
+          onClick={() => {
+            setSidebarShown(false);
+          }}
+        >
+          <ListItemIcon>
+            <BoyIcon></BoyIcon>
+          </ListItemIcon>
+          <ListItemText primary={"Lifetime"}></ListItemText>
+        </ListItemButton>
       </List>
     </Box>
   );
@@ -85,13 +106,15 @@ const Navbar = (props) => {
       <Box component="nav">
         <AppBar position="static" style={{ background: "#288bbd" }}>
           <Toolbar>
-            <IconButton onClick={()=> setSidebarShown(true)}>
-              <ArrowBack style={{ color: brightColor }}></ArrowBack>
+            <IconButton onClick={() => setSidebarShown(true)}>
+              <Menu style={{ color: brightColor }}></Menu>
             </IconButton>
             <Typography variant="h5" style={{ color: brightColor }}>
               Portfolio
             </Typography>
-            <Drawer open={sidebarShown} onClose={()=>setSidebarShown(false)}>{sideList("right")}</Drawer>
+            <Drawer open={sidebarShown} onClose={() => setSidebarShown(false)}>
+              {sideList("right")}
+            </Drawer>
           </Toolbar>
         </AppBar>
       </Box>
