@@ -1,6 +1,13 @@
 import React, { useState } from "react";
 import "./Lifetime.css";
-import { Button, Container, TextField, Typography } from "@mui/material";
+import {
+  Box,
+  Button,
+  Container,
+  Divider,
+  TextField,
+  Typography,
+} from "@mui/material";
 import LifePhases from "./LifePhases";
 
 const Lifetime = () => {
@@ -11,118 +18,115 @@ const Lifetime = () => {
     expAge: 80,
     tooOldAge: 70,
   });
-  const [birth, setBirth] = useState({ day: 10, month: 12, year: 2001 });
-  const [expAge, setExpAge] = useState(80);
-  const [tooOldAge, setTooOldAge] = useState(70);
   const newDate = new Date();
-  const checkAndUpdate = () => {
+  const checkAndUpdateSetting = (state) => {
     if (
-      trackSetting.year > 1900 &&
-      trackSetting.year < newDate.getFullYear() &&
-      trackSetting.month > 0 &&
-      trackSetting.month < 13 &&
-      trackSetting.day > 0 &&
-      trackSetting.day < 32
+      state.year > 1900 &&
+      state.year < newDate.getFullYear() &&
+      state.month > 0 &&
+      state.month < 13 &&
+      state.day > 0 &&
+      state.day < 32
     ) {
-      setBirth((state) => {
-        return {
-          day: trackSetting.day,
-          month: trackSetting.month - 1,
-          year: trackSetting.year,
-        };
-      });
-      setExpAge(trackSetting.expAge);
-      setTooOldAge(trackSetting.tooOldAge);
+      setTrackSetting(state);
     }
   };
 
   return (
     <Container maxWidth="sm">
       <Typography
-        variant="h2"
+        variant="h4"
         style={{ color: "black", textAlign: "center", marginTop: "20px" }}
       >
         Lifetime Calculator
       </Typography>
-      <Typography variant="h5">
+      <Typography variant="p">
         One only has limited time to live. When you calculate the amount of
-        weeks that you are about to live, your life suddenly feels short. This
-        might feel intimidating. But it can also serve as a motivation to not
-        miss out on the things that you really want to do. Life is too short to
-        not commit to the things that you love.
+        weeks that you are about to live, your life suddenly feels short.
       </Typography>
-      <TextField
-        key="day"
-        label="Day"
-        type="number"
-        defaultValue={birth.day}
-        onChange={(event) =>
-          setTrackSetting((state) => {
-            state.day = event.target.value;
-            return state;
-          })
-        }
-        style={{ width: "30%" }}
-      />
-      <TextField
-        key="month"
-        label="Month"
-        type="number"
-        defaultValue={birth.month}
-        onChange={(event) =>
-          setTrackSetting((state) => {
-            state.month = event.target.value;
-            return state;
-          })
-        }
-        style={{ width: "30%" }}
-      />
-      <TextField
-        key="year"
-        label="Year"
-        type="number"
-        defaultValue={birth.year}
-        style={{ width: "30%" }}
-        onChange={(event) =>{
-          setTrackSetting((state) => {
-            state.year = event.target.value;
-            return state;
-          })
-          checkAndUpdate()
-        }
-        }
-      />
-      <TextField
-        label="Expected Age of death"
-        type="number"
-        defaultValue={expAge}
-        onChange={(event) =>
-          setTrackSetting((state) => {
-            state.expAge = event.target.value;
-            return state;
-          })
-        }
-        style={{ width: "30%" }}
-      />
-      <TextField
-        label="Too Old Age"
-        type="number"
-        defaultValue={tooOldAge}
-        onChange={(event) =>
-          setTrackSetting((state) => {
-            state.tooOldAge = event.target.value.toN;
-            return state;
-          })
-        }
-        style={{ width: "30%" }}
-      />
+      <Box
+        sx={{
+          marginTop: "10px",
+          display: "flex",
+          justifyContent: "space-evenly",
+        }}
+      >
+        <TextField
+          key="day"
+          label="Day"
+          type="number"
+          defaultValue={trackSetting.day}
+          onChange={(event) => {
+            const newState = { ...trackSetting };
+            newState.day = event.target.value;
+            checkAndUpdateSetting(newState);
+          }}
+        />
+        <TextField
+          key="month"
+          label="Month"
+          type="number"
+          defaultValue={trackSetting.month}
+          onChange={(event) => {
+            const newState = { ...trackSetting };
+            newState.month = event.target.value-1;
+            checkAndUpdateSetting(newState);
+          }}
+        />
+        <TextField
+          key="year"
+          label="Year"
+          type="number"
+          defaultValue={trackSetting.year}
+          onChange={(event) => {
+            const newState = { ...trackSetting };
+            newState.year = event.target.value;
+            checkAndUpdateSetting(newState);
+          }}
+        />
+      </Box>
+      <Box sx={{ marginTop: "10px", justifyContent: "space-evenly" }}>
+        <TextField
+          label="Expected Age of death"
+          type="number"
+          defaultValue={trackSetting.expAge}
+          onChange={(event) => {
+            const newState = { ...trackSetting };
+            newState.expAge = event.target.value;
+            checkAndUpdateSetting(newState);
+          }}
+        />
+        <TextField
+          label="Too Old Age"
+          type="number"
+          defaultValue={trackSetting.tooOldAge}
+          onChange={(event) => {
+            const newState = { ...trackSetting };
+            newState.tooOldAge = event.target.value;
+            checkAndUpdateSetting(newState);
+          }}
+        />
+      </Box>
+      <Box sx={{ marginTop: "10px" }}>
+        <Typography variant="p">
+          Below represented is your expected time in your life. Each dot
+          represents one week. Each row is 52 weeks which is roughly one year.
+        </Typography>
+      </Box>
       <LifePhases
-        expAge={expAge}
-        birthDay={birth.day}
-        birthMonth={birth.month}
-        birthYear={birth.year}
-        tooOldAge={tooOldAge}
+        expAge={trackSetting.expAge}
+        birthDay={trackSetting.day}
+        birthMonth={trackSetting.month}
+        birthYear={trackSetting.year}
+        tooOldAge={trackSetting.tooOldAge}
       ></LifePhases>
+      <Box sx={{ marginTop: "20px" }}>
+        <Typography variant="p">
+          This might feel intimidating. But it can also serve as a motivation to
+          not miss out on the things that you really want to do. Life is too
+          short to not commit to the things that you love.
+        </Typography>
+      </Box>
     </Container>
   );
 };

@@ -91,15 +91,14 @@ const LifePhases = (props) => {
     (newDate.getMonth() - props.birthMonth) * 30.437 +
     (newDate.getFullYear() - props.birthYear) * 365; //30.437 is average month length
   const numWeeksSinceBirth = numDaysSinceBirth / 7;
-  const index1 = Math.floor(numWeeksSinceBirth / 52)
-  const index2 = Math.round(numWeeksSinceBirth % 52)
-  if(index1 < dotsByYear.length){
-    if(index2<dotsByYear[index1].length){
+  const index1 = Math.floor(numWeeksSinceBirth / 52);
+  const index2 = Math.round(numWeeksSinceBirth % 52);
+  if (index1 < dotsByYear.length) {
+    if (index2 < dotsByYear[index1].length) {
       dotsByYear[index1][index2] = "youarehere";
     }
   }
-    
-  
+
   return (
     <Grid
       container
@@ -110,9 +109,17 @@ const LifePhases = (props) => {
       {dotsByYear.map((year, key) => (
         <Grid item container key={key} justifyContent="center">
           <Box sx={{ display: "flex", flexDirection: "row" }}>
-            {year.map((style, id) => (
-                <Box className={style}></Box>
-            ))}{" "}
+            {year.map((style, id) => {
+              if (style !== "youarehere") {
+                return <Box key={id+style} className={style}></Box>;
+              } else {
+                return (
+                  <Tooltip key={id+style} open arrow placement="right-end"  title="You are here">
+                    <Box className={style}></Box>
+                  </Tooltip>
+                );
+              }
+            })}
           </Box>
         </Grid>
       ))}
