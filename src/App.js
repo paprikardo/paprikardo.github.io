@@ -7,10 +7,10 @@ import Container from "@mui/material/Container";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
 import "./App.css";
 
-import Navbar from "./components/Navbar";
 import Header from "./components/Header";
-import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
+import { BrowserRouter as Router, Route, Routes, HashRouter } from "react-router-dom";
 import Lifetime from "./components/Lifetime/Lifetime";
+import Navbar from "./components/navbar";
 
 function Copyright(props) {
   return (
@@ -34,7 +34,7 @@ const defaultTheme = createTheme();
 
 export default function App() {
   return (
-    <Router>
+    <HashRouter>
       <ThemeProvider theme={defaultTheme}>
         <Container component="main" maxWidth="xm">
           <CssBaseline />
@@ -46,6 +46,6 @@ export default function App() {
           <Copyright sx={{ mt: 8, mb: 4 }} />
         </Container>
       </ThemeProvider>
-    </Router>
+    </HashRouter>
   );
 }
