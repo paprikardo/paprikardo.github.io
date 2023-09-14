@@ -13,10 +13,10 @@ import {
   ListItemButton,
   Drawer,
 } from "@mui/material";
-import { AssignmentInd, Home, Apps, Menu } from "@material-ui/icons";
-import BoyIcon from '@mui/icons-material/Boy';
+import { AssignmentInd, Home, Menu } from "@material-ui/icons";
+import BoyIcon from "@mui/icons-material/Boy";
 import { makeStyles } from "@material-ui/core";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 const brightColor = "#f0f6ff";
 const myBlue = "#288bbd";
@@ -42,15 +42,10 @@ const useStyles = makeStyles((theme) => ({
   },
 }));
 
-const menuItems = [
-  { listIcon: <Home />, listText: "Home", component: Link, listPath: "/" },
-  { listIcon: <AssignmentInd />, listText: "Resume" },
-  { listIcon: <Apps />, listText: "Others", listPath: "" },
-];
-
 const Navbar = (props) => {
   const [sidebarShown, setSidebarShown] = useState(false);
   const classes = useStyles();
+  const locat = useLocation();
 
   const sideList = (slider) => (
     <Box className={classes.menuSliderContainer} component="div">
@@ -66,7 +61,9 @@ const Navbar = (props) => {
         <ListItemButton
           component={Link}
           to={"/"}
-          onClick={() => setSidebarShown(false)}
+          onClick={() => {
+            setSidebarShown(false);
+          }}
         >
           <ListItemIcon>
             <Home />
@@ -110,7 +107,7 @@ const Navbar = (props) => {
               <Menu style={{ color: brightColor }}></Menu>
             </IconButton>
             <Typography variant="h5" style={{ color: brightColor }}>
-              Portfolio
+              {locat.pathname === "/" ? "Home" : "Lifetime"}
             </Typography>
             <Drawer open={sidebarShown} onClose={() => setSidebarShown(false)}>
               {sideList("right")}

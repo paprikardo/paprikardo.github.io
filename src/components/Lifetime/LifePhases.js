@@ -114,7 +114,7 @@ const LifePhases = (props) => {
                 return <Box key={id+style} className={style}></Box>;
               } else {
                 return (
-                  <Tooltip key={id+style} open arrow placement="right-end"  title="You are here">
+                  <Tooltip key={id+style} open arrow placement="right"  title="You are here">
                     <Box className={style}></Box>
                   </Tooltip>
                 );

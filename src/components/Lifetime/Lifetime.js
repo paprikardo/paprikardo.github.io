@@ -2,9 +2,7 @@ import React, { useState } from "react";
 import "./Lifetime.css";
 import {
   Box,
-  Button,
   Container,
-  Divider,
   TextField,
   Typography,
 } from "@mui/material";
@@ -33,7 +31,7 @@ const Lifetime = () => {
   };
 
   return (
-    <Container maxWidth="sm">
+    <Container maxWidth="sm" style={{ backdropFilter: "blur(2px)" }}>
       <Typography
         variant="h4"
         style={{ color: "black", textAlign: "center", marginTop: "20px" }}
@@ -43,6 +41,11 @@ const Lifetime = () => {
       <Typography variant="p">
         One only has limited time to live. When you calculate the amount of
         weeks that you are about to live, your life suddenly feels short.
+      </Typography>
+      <Typography variant="p">
+        Enter your birthday, your expected age of death (Average in Switzerland
+        is 82 for men and 86 for women) and the "Inactive age" where you will
+        lack body fitness.
       </Typography>
       <Box
         sx={{
@@ -69,7 +72,7 @@ const Lifetime = () => {
           defaultValue={trackSetting.month}
           onChange={(event) => {
             const newState = { ...trackSetting };
-            newState.month = event.target.value-1;
+            newState.month = event.target.value - 1;
             checkAndUpdateSetting(newState);
           }}
         />
@@ -97,7 +100,7 @@ const Lifetime = () => {
           }}
         />
         <TextField
-          label="Too Old Age"
+          label="Inactive Age"
           type="number"
           defaultValue={trackSetting.tooOldAge}
           onChange={(event) => {
@@ -112,6 +115,30 @@ const Lifetime = () => {
           Below represented is your expected time in your life. Each dot
           represents one week. Each row is 52 weeks which is roughly one year.
         </Typography>
+      </Box>
+      <Box className="legendeBigContainer">
+        <Box className="legendeContainer">
+          <Box className="childhood"></Box>
+          <Box className="legendeText">Your Childhood (until age of 12)</Box>
+        </Box>
+        <Box className="legendeContainer">
+          <Box className="teenager"></Box>
+          <Box className="legendeText">
+            Your Teenager Time (until age of 20)
+          </Box>
+        </Box>
+        <Box className="legendeContainer">
+          <Box className="adult"></Box>
+          <Box className="legendeText">Your Adulthood</Box>
+        </Box>
+        <Box className="legendeContainer">
+          <Box className="retired"></Box>
+          <Box className="legendeText">Your Time retired </Box>
+        </Box>
+        <Box className="legendeContainer">
+          <Box className="tooOld"></Box>
+          <Box className="legendeText">Your Time inactive</Box>
+        </Box>
       </Box>
       <LifePhases
         expAge={trackSetting.expAge}
