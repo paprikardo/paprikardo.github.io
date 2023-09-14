@@ -2,7 +2,7 @@ import React from "react";
 import { Typography, Grid } from "@mui/material";
 import Typed from "react-typed";
 
-const avatar = "/profile.png";
+const avatar = "/profile.jpeg";
 
 const brightColor = "#f0f6ff";
 //const myBlue = "#288bbd";
