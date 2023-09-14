@@ -1,7 +1,8 @@
 {
   "scripts": {
     "start": "BROWSER='google chrome' react-scripts start",
-    "build": "react-scripts build; git subtree push --prefix build origin gh-pages"
+    "build": "react-scripts build",
+    "deploy": "gh-pages --dist 'build' --branch 'gh-pages'"
   },
   "dependencies": {
     "@emotion/react": "^11.11.1",
@@ -14,6 +15,7 @@
     "@mui/material": "^5.14.8",
     "@mui/styles": "^5.14.7",
     "@mui/x-date-pickers": "^6.13.0",
+    "gh-pages": "^6.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.15.0",
