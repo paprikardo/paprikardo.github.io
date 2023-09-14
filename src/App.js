@@ -6,11 +6,11 @@ import Typography from "@mui/material/Typography";
 import Container from "@mui/material/Container";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
 import "./App.css";
-
 import Header from "./components/Header";
-import { BrowserRouter as Router, Route, Routes, HashRouter } from "react-router-dom";
 import Lifetime from "./components/Lifetime/Lifetime";
-import Navbar from "./components/navbar";
+import Navbar from "./components/Navbar";
+
+import { Route, Routes, HashRouter } from "react-router-dom";
 
 function Copyright(props) {
   return (
@@ -20,7 +20,11 @@ function Copyright(props) {
       align="center"
       {...props}
     >
-      {"Copyright © "}
+      <Link color="inherit" href="https://www.flaticon.com/free-icons/letter-r">
+        Icon
+      </Link>{" "}
+      created by Md Tanvirul Haque
+      {", Copyright © "}
       <Link color="inherit" href="https://ricardoheinzmann.com/">
         Ricardo Heinzmann
       </Link>{" "}
