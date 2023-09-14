@@ -1,11 +1,6 @@
 import React, { useState } from "react";
 import "./Lifetime.css";
-import {
-  Box,
-  Container,
-  TextField,
-  Typography,
-} from "@mui/material";
+import { Box, Container, TextField, Typography } from "@mui/material";
 import LifePhases from "./LifePhases";
 
 const Lifetime = () => {
@@ -24,7 +19,11 @@ const Lifetime = () => {
       state.month > 0 &&
       state.month < 13 &&
       state.day > 0 &&
-      state.day < 32
+      state.day < 32 &&
+      state.expAge < 150 &&
+      state.expAge > 0 &&
+      state.tooOldAge > 0 &&
+      state.tooOldAge < 150
     ) {
       setTrackSetting(state);
     }
