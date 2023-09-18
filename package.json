@@ -2,7 +2,7 @@
   "scripts": {
     "start": "BROWSER='google chrome' react-scripts start",
     "build": "react-scripts build",
-    "deploy": "gh-pages --dist 'build' --branch 'gh-pages'"
+    "deploy": "echo ricardoheinzmann.com > ./build/CNAME && gh-pages --dist 'build' --branch 'gh-pages'"
   },
   "dependencies": {
     "@emotion/react": "^11.11.1",
