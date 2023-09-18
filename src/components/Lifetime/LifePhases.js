@@ -88,9 +88,9 @@ const LifePhases = (props) => {
   const numDaysSinceBirth =
     newDate.getDate() -
     props.birthDay +
-    (newDate.getMonth() - props.birthMonth) * 30.437 +
-    (newDate.getFullYear() - props.birthYear) * 365; //30.437 is average month length
-  const numWeeksSinceBirth = numDaysSinceBirth / 7;
+    (newDate.getMonth() + 1 - props.birthMonth) * 30.437 + //30.437 is average month length, getMonth returns values from 0 to 11
+    (newDate.getFullYear() - props.birthYear) * 365;
+  const numWeeksSinceBirth = Math.floor(numDaysSinceBirth / 7);
   const index1 = Math.floor(numWeeksSinceBirth / 52);
   const index2 = Math.round(numWeeksSinceBirth % 52);
   if (index1 < dotsByYear.length) {
@@ -98,7 +98,7 @@ const LifePhases = (props) => {
       dotsByYear[index1][index2] = "youarehere";
     }
   }
-
+  console.log(yearsToWeeks(1))
   return (
     <Grid
       container
@@ -111,10 +111,16 @@ const LifePhases = (props) => {
           <Box sx={{ display: "flex", flexDirection: "row" }}>
             {year.map((style, id) => {
               if (style !== "youarehere") {
-                return <Box key={id+style} className={style}></Box>;
+                return <Box key={id + style} className={style}></Box>;
               } else {
                 return (
-                  <Tooltip key={id+style} open arrow placement="right"  title="You are here">
+                  <Tooltip
+                    key={id + style}
+                    open
+                    arrow
+                    placement="right"
+                    title="You are here"
+                  >
                     <Box className={style}></Box>
                   </Tooltip>
                 );

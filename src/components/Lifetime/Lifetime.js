@@ -17,7 +17,6 @@ const Lifetime = () => {
   const newDate = new Date();
 
   const checkSettings = (state) => {
-    console.log(state);
     if (
       //check valid input
       state.year.length == 4 &&
@@ -43,13 +42,13 @@ const Lifetime = () => {
     ) {
       return true;
     } else {
+      console.log(state);
       console.log(
         "ERROR", //check valid input
         state.year.length == 4 &&
           (state.month.length == 1 || state.month.length == 2) &&
           (state.day.length == 1 || state.month.length == 2)
       );
-
       console.log(
         "date",
         state.year < newDate.getFullYear() ||
@@ -202,13 +201,13 @@ const Lifetime = () => {
           <Box className="legendeContainer">
             <Box className="childhood"></Box>
             <Box className="legendeText" style={{ color: brightColor }}>
-              Your Childhood (until age of 12)
+              Your Childhood (younger than age of 12)
             </Box>
           </Box>
           <Box className="legendeContainer">
             <Box className="teenager"></Box>
             <Box className="legendeText" style={{ color: brightColor }}>
-              Your Teenager Time (until age of 20)
+              Your Teenager Time (age of 12 until 20)
             </Box>
           </Box>
           <Box className="legendeContainer">
