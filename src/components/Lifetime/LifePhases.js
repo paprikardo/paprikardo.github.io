@@ -98,7 +98,6 @@ const LifePhases = (props) => {
       dotsByYear[index1][index2] = "youarehere";
     }
   }
-  console.log(yearsToWeeks(1))
   return (
     <Grid
       container

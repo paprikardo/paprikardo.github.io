@@ -8,20 +8,22 @@ const brightColor = "#f0f6ff";
 
 const Lifetime = () => {
   const [trackSetting, setTrackSetting] = useState({
-    day: "10",
-    month: "12",
-    year: "2001",
-    expAge: "80",
-    tooOldAge: "70",
+    day: 10,
+    month: 12,
+    year: 2001,
+    expAge: 80,
+    tooOldAge: 70,
   });
   const newDate = new Date();
 
   const checkSettings = (state) => {
+    console.log(state);
     if (
       //check valid input
-      state.year.length == 4 &&
-      (state.month.length == 1 || state.month.length == 2) &&
-      (state.day.length == 1 || state.day.length == 2) &&
+      state.year.toString().length == 4 &&
+      (state.month.toString().length == 1 ||
+        state.month.toString().length == 2) &&
+      (state.day.toString().length == 1 || state.day.toString().length == 2) &&
       //check date before today
       (state.year < newDate.getFullYear() ||
       (state.year == newDate.getFullYear() &&
@@ -40,6 +42,7 @@ const Lifetime = () => {
       state.tooOldAge > 0 &&
       state.tooOldAge < 501
     ) {
+      console.log(true)
       return true;
     } else {
       console.log(state);
@@ -132,7 +135,7 @@ const Lifetime = () => {
             value={trackSetting.day}
             onChange={(event) => {
               const newState = { ...trackSetting };
-              newState.day = event.target.value;
+              newState.day = parseInt(event.target.value);
               setTrackSetting(newState);
             }}
             sx={{ input: { color: brightColor } }}
@@ -145,7 +148,7 @@ const Lifetime = () => {
             value={trackSetting.month}
             onChange={(event) => {
               const newState = { ...trackSetting };
-              newState.month = event.target.value;
+              newState.month = parseInt(event.target.value);
               setTrackSetting(newState);
             }}
             sx={{ input: { color: brightColor } }}
@@ -158,7 +161,7 @@ const Lifetime = () => {
             value={trackSetting.year}
             onChange={(event) => {
               const newState = { ...trackSetting };
-              newState.year = event.target.value;
+              newState.year = parseInt(event.target.value);
               setTrackSetting(newState);
             }}
             sx={{ input: { color: brightColor } }}
@@ -172,7 +175,7 @@ const Lifetime = () => {
             value={trackSetting.expAge}
             onChange={(event) => {
               const newState = { ...trackSetting };
-              newState.expAge = event.target.value;
+              newState.expAge = parseInt(event.target.value);
               setTrackSetting(newState);
             }}
             sx={{ input: { color: brightColor } }}
@@ -186,7 +189,7 @@ const Lifetime = () => {
             InputLabelProps={{ style: { color: brightColor } }}
             onChange={(event) => {
               const newState = { ...trackSetting };
-              newState.tooOldAge = event.target.value;
+              newState.tooOldAge = parseInt(event.target.value);
               setTrackSetting(newState);
             }}
           />
