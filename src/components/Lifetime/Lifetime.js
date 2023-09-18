@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import "./Lifetime.css";
-import { Box, Container, TextField, Typography } from "@mui/material";
+import { Box, Container, Grid, TextField, Typography } from "@mui/material";
 import LifePhases from "./LifePhases";
 
 const backgroundWithOpacity = "rgba(46, 58, 64 ,0.6)";
@@ -42,7 +42,7 @@ const Lifetime = () => {
       state.tooOldAge > 0 &&
       state.tooOldAge < 501
     ) {
-      console.log(true)
+      console.log(true);
       return true;
     } else {
       console.log(state);
@@ -65,7 +65,7 @@ const Lifetime = () => {
         newDate.getFullYear()
       );
       console.log(
-        "length",
+        "length",state.year.toString().length,
         state.year.length == 4 &&
           (state.month.length == 1 || state.month.length == 2) &&
           (state.day.length == 1 || state.day.length == 2),
@@ -241,7 +241,17 @@ const Lifetime = () => {
             tooOldAge={trackSetting.tooOldAge}
           ></LifePhases>
         ) : (
-          "Invalid Values"
+          <Grid
+            container
+            direction="column"
+            alignItems="center"
+            style={{ marginTop: "20px" }}
+          >
+            <Grid ite style={{ color: brightColor }}>
+              {" "}
+              Invalid Inputs: Please correct your entered info above.
+            </Grid>
+          </Grid>
         )}
         <Box sx={{ marginTop: "20px" }}>
           <Typography variant="p" style={{ color: brightColor }}>
