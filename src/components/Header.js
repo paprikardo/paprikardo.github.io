@@ -49,7 +49,7 @@ const Header = (props) => {
             style={{
               color: brightColor,
               textAlign: "center",
-              fontFamily: ["Times", "Times New Roman", "serif"],
+              fontFamily: ["Bogart","sans-serif"],
             }}
             variant="h4"
           >
@@ -68,7 +68,7 @@ const Header = (props) => {
             variant="h4"
             style={{
               textAlign: "center",
-              fontFamily: ["Times", "Times New Roman", "serif"],
+              fontFamily: ["Bogart", "sans-serif"],
               color: brightColor,
             }}
           >
@@ -89,7 +89,7 @@ const Header = (props) => {
         <Grid item>
           <Typography
             style={{
-              color: brightColor,
+              color: "#3e434a",
               textAlign: "center",
               fontFamily: ["Courier New", "Lucida Console"],
             }}
