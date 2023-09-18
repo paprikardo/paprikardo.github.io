@@ -8,27 +8,83 @@ const brightColor = "#f0f6ff";
 
 const Lifetime = () => {
   const [trackSetting, setTrackSetting] = useState({
-    day: 10,
-    month: 12,
-    year: 2001,
-    expAge: 80,
-    tooOldAge: 70,
+    day: "10",
+    month: "12",
+    year: "2001",
+    expAge: "80",
+    tooOldAge: "70",
   });
   const newDate = new Date();
-  const checkAndUpdateSetting = (state) => {
+
+  const checkSettings = (state) => {
+    console.log(state);
     if (
-      state.year > 1900 &&
-      state.year < newDate.getFullYear() &&
+      //check valid input
+      state.year.length == 4 &&
+      (state.month.length == 1 || state.month.length == 2) &&
+      (state.day.length == 1 || state.day.length == 2) &&
+      //check date before today
+      (state.year < newDate.getFullYear() ||
+      (state.year == newDate.getFullYear() &&
+        state.month < newDate.getMonth() + 1) || //getMonth returns values from 0 to 11
+        (state.year == newDate.getFullYear() &&
+          state.month == newDate.getMonth() + 1 &&
+          state.day < newDate.getDate())) &&
+      //check valid values
+      state.year > 1800 &&
       state.month > 0 &&
       state.month < 13 &&
       state.day > 0 &&
-      state.day < 32 &&
-      state.expAge < 150 &&
+      state.day < 33 &&
+      state.expAge < 501 &&
       state.expAge > 0 &&
       state.tooOldAge > 0 &&
-      state.tooOldAge < 150
+      state.tooOldAge < 501
     ) {
-      setTrackSetting(state);
+      return true;
+    } else {
+      console.log(
+        "ERROR", //check valid input
+        state.year.length == 4 &&
+          (state.month.length == 1 || state.month.length == 2) &&
+          (state.day.length == 1 || state.month.length == 2)
+      );
+
+      console.log(
+        "date",
+        state.year < newDate.getFullYear() ||
+        (state.year == newDate.getFullYear() &&
+          state.month < newDate.getMonth() + 1) || //getMonth returns values from 0 to 11
+          (state.year == newDate.getFullYear() &&
+            state.month == newDate.getMonth() + 1 &&
+            state.day < newDate.getDate()),
+        newDate.getDate(),
+        newDate.getMonth(),
+        newDate.getFullYear()
+      );
+      console.log(
+        "length",
+        state.year.length == 4 &&
+          (state.month.length == 1 || state.month.length == 2) &&
+          (state.day.length == 1 || state.day.length == 2),
+        state.month.length,
+        state.month.length == 1 || state.month.length == 2
+      );
+      console.log(
+        "valid values",
+        state.year > 1800 &&
+          state.month > 0 &&
+          state.month < 13 &&
+          state.day > 0 &&
+          state.day < 33 &&
+          state.expAge < 501 &&
+          state.expAge > 0 &&
+          state.tooOldAge > 0 &&
+          state.tooOldAge < 501,
+        state.month > 0 && state.month < 13,
+        state.day > 0 && state.day < 33
+      );
+      return false;
     }
   };
 
@@ -74,11 +130,11 @@ const Lifetime = () => {
             key="day"
             label="Day"
             type="number"
-            defaultValue={trackSetting.day}
+            value={trackSetting.day}
             onChange={(event) => {
               const newState = { ...trackSetting };
               newState.day = event.target.value;
-              checkAndUpdateSetting(newState);
+              setTrackSetting(newState);
             }}
             sx={{ input: { color: brightColor } }}
             InputLabelProps={{ style: { color: brightColor } }}
@@ -87,11 +143,11 @@ const Lifetime = () => {
             key="month"
             label="Month"
             type="number"
-            defaultValue={trackSetting.month}
+            value={trackSetting.month}
             onChange={(event) => {
               const newState = { ...trackSetting };
-              newState.month = event.target.value - 1;
-              checkAndUpdateSetting(newState);
+              newState.month = event.target.value;
+              setTrackSetting(newState);
             }}
             sx={{ input: { color: brightColor } }}
             InputLabelProps={{ style: { color: brightColor } }}
@@ -100,11 +156,11 @@ const Lifetime = () => {
             key="year"
             label="Year"
             type="number"
-            defaultValue={trackSetting.year}
+            value={trackSetting.year}
             onChange={(event) => {
               const newState = { ...trackSetting };
               newState.year = event.target.value;
-              checkAndUpdateSetting(newState);
+              setTrackSetting(newState);
             }}
             sx={{ input: { color: brightColor } }}
             InputLabelProps={{ style: { color: brightColor } }}
@@ -114,11 +170,11 @@ const Lifetime = () => {
           <TextField
             label="Expected Age of death"
             type="number"
-            defaultValue={trackSetting.expAge}
+            value={trackSetting.expAge}
             onChange={(event) => {
               const newState = { ...trackSetting };
               newState.expAge = event.target.value;
-              checkAndUpdateSetting(newState);
+              setTrackSetting(newState);
             }}
             sx={{ input: { color: brightColor } }}
             InputLabelProps={{ style: { color: brightColor } }}
@@ -126,13 +182,13 @@ const Lifetime = () => {
           <TextField
             label="Inactive Age"
             type="number"
-            defaultValue={trackSetting.tooOldAge}
+            value={trackSetting.tooOldAge}
             sx={{ input: { color: brightColor } }}
             InputLabelProps={{ style: { color: brightColor } }}
             onChange={(event) => {
               const newState = { ...trackSetting };
               newState.tooOldAge = event.target.value;
-              checkAndUpdateSetting(newState);
+              setTrackSetting(newState);
             }}
           />
         </Box>
@@ -174,13 +230,17 @@ const Lifetime = () => {
             </Box>
           </Box>
         </Box>
-        <LifePhases
-          expAge={trackSetting.expAge}
-          birthDay={trackSetting.day}
-          birthMonth={trackSetting.month}
-          birthYear={trackSetting.year}
-          tooOldAge={trackSetting.tooOldAge}
-        ></LifePhases>
+        {checkSettings(trackSetting) ? (
+          <LifePhases
+            expAge={trackSetting.expAge}
+            birthDay={trackSetting.day}
+            birthMonth={trackSetting.month}
+            birthYear={trackSetting.year}
+            tooOldAge={trackSetting.tooOldAge}
+          ></LifePhases>
+        ) : (
+          "Invalid Values"
+        )}
         <Box sx={{ marginTop: "20px" }}>
           <Typography variant="p" style={{ color: brightColor }}>
             This might feel intimidating. But it can also serve as a motivation
