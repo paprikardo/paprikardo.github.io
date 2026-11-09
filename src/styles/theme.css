@@ -4,8 +4,8 @@
    ========================================================== */
 :root {
   --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-head: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-head: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
   --bg: #faf8f4;
   --surface: #ffffff;
@@ -17,14 +17,6 @@
   --track: #8a5a1c;
   --track-soft: #f6ecdc;
 
-  /* lifetime calculator phases */
-  --phase-child: #9ccfc6;
-  --phase-teen: #5fa9a0;
-  --phase-adult: #2f6f6a;
-  --phase-retired: #d9a55b;
-  --phase-inactive: #b9b4aa;
-  --phase-past-opacity: 0.4;
-  --here: #d6453d;
 
   --radius: 12px;
   --maxw: 760px;
@@ -43,11 +35,6 @@
     --accent-soft: #1f3331;
     --track: #e2b26b;
     --track-soft: #33291b;
-    --phase-child: #3d6d66;
-    --phase-teen: #4f938a;
-    --phase-adult: #7cc4bb;
-    --phase-retired: #d9a55b;
-    --phase-inactive: #5a5d62;
     color-scheme: dark;
   }
 }
@@ -61,11 +48,6 @@
   --accent-soft: #1f3331;
   --track: #e2b26b;
   --track-soft: #33291b;
-  --phase-child: #3d6d66;
-  --phase-teen: #4f938a;
-  --phase-adult: #7cc4bb;
-  --phase-retired: #d9a55b;
-  --phase-inactive: #5a5d62;
   color-scheme: dark;
 }
 
@@ -79,10 +61,24 @@ body {
   font: 16px/1.6 var(--font-body);
 }
 a { color: var(--accent); text-underline-offset: 3px; }
-h1, h2, h3 { font-family: var(--font-head); line-height: 1.25; font-weight: 600; }
-h1 { font-size: clamp(1.8rem, 5vw, 2.4rem); margin: 0 0 .25rem; }
-h2 { font-size: 1.35rem; margin: 2.5rem 0 1rem; }
-h3 { font-size: 1.08rem; margin: .35rem 0; }
+h1, h2, h3 { font-family: var(--font-head); line-height: 1.25; font-weight: 700; letter-spacing: -.02em; }
+h1 { font-size: clamp(1.6rem, 4.5vw, 2.1rem); margin: 0 0 .25rem; }
+h2 { font-size: 1.3rem; margin: 2.5rem 0 1rem; }
+h3 { font-size: 1rem; margin: .35rem 0; }
+.paper h3, .panel h3.long { font-family: var(--font-body); font-size: 1.05rem; font-weight: 600; letter-spacing: 0; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* section header: title left, action right; small subtitle; small-caps labels */
+.section-head { display: flex; justify-content: space-between; align-items: center; gap: .8rem; margin: 2.5rem 0 0; }
+.section-head h2 { margin: 0; }
+.section-sub { margin: .3rem 0 1rem; }
+.eyebrow { font: 600 .75rem/1 var(--font-mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 1.6rem 0 .8rem; }
+.backlog-box { margin-top: 1.4rem; }
+.backlog-box summary { cursor: pointer; margin: 0; list-style: none; display: inline-flex; gap: .4rem; align-items: center; }
+.backlog-box summary::-webkit-details-marker { display: none; }
+.backlog-box summary::before { content: "▸"; transition: transform .15s; }
+.backlog-box[open] summary::before { transform: rotate(90deg); }
+.backlog-box summary .muted { text-transform: none; letter-spacing: 0; font-weight: 400; }
 .wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 var(--gutter); }
 .muted { color: var(--muted); }
 .mono { font-family: var(--font-mono); font-size: .8rem; }
@@ -90,7 +86,7 @@ h3 { font-size: 1.08rem; margin: .35rem 0; }
 /* ---------- nav ---------- */
 .nav { border-bottom: 1px solid var(--border); }
 .nav .wrap { display: flex; align-items: center; gap: 1.1rem; height: 56px; }
-.nav .brand { font-family: var(--font-head); font-weight: 600; color: var(--text); text-decoration: none; margin-right: auto; }
+.nav .brand { font-family: var(--font-head); font-weight: 700; letter-spacing: -.02em; color: var(--text); text-decoration: none; margin-right: auto; }
 .nav a:not(.brand) { color: var(--muted); text-decoration: none; font-size: .92rem; }
 .nav a[aria-current="page"] { color: var(--text); }
 .nav .short { display: none; }
@@ -148,5 +144,3 @@ h3 { font-size: 1.08rem; margin: .35rem 0; }
   .banner .chips { justify-content: center; }
 }
 
-/* radar header row: label left, archive button right */
-.radar-head { display: flex; justify-content: space-between; align-items: center; gap: .8rem; }

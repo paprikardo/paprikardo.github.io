@@ -4,41 +4,43 @@ import PaperCard from "../components/PaperCard.astro";
 import TagFilter from "../components/TagFilter.astro";
 import { latest } from "../data/papers";
 import { sections } from "../data/panels";
+
+// "1 November 2026 – 8 November 2026" → "1 Nov 2026 – 8 Nov 2026"
+const shortRange = latest.range.replace(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\b/g, (m) => m.slice(0, 3));
 ---
 <Base>
-  <section style="margin-top:2.2rem">
-    <div class="radar-head">
-      <p class="mono muted" style="margin:0">Paper radar · {latest.week}</p>
+  <h1 class="sr-only">Ricardo Heinzmann</h1>
+  <section id="radar">
+    <div class="section-head">
+      <h2>Paper radar {latest.week !== "seed" && <span class="muted">{latest.week}</span>}</h2>
       <a class="chip" href="/archive/">Archive →</a>
     </div>
-    <h1>{latest.title ?? `Week ${latest.week}`}</h1>
-    <p class="muted" style="margin-top:0">
-      {latest.range}{latest.screened != null && ` · ${latest.screened} papers screened`}
+    <p class="section-sub mono muted">
+      {shortRange}{latest.screened != null && ` · ${latest.screened} papers screened`}
     </p>
     {latest.note && <p class="notice">{latest.note}</p>}
+
+    <TagFilter />
+
+    <p class="eyebrow">Top picks</p>
+    <div class="stack">
+      {latest.picks.map((p) => <PaperCard paper={p} />)}
+    </div>
+
+    {latest.backlog.length > 0 && (
+      <details class="backlog-box">
+        <summary class="eyebrow">Backlog <span class="muted">· {latest.backlog.length} more papers</span></summary>
+        <ul class="backlog">
+          {latest.backlog.map((b) => (
+            <li data-tags={b.tags.join(" ")}>
+              <a href={b.url} target="_blank" rel="noopener">{b.title}</a>
+              <span class="muted"> — {b.gloss}</span>
+            </li>
+          ))}
+        </ul>
+      </details>
+    )}
   </section>
-
-  <TagFilter />
-
-  <h2>Top picks</h2>
-  <div class="stack">
-    {latest.picks.map((p) => <PaperCard paper={p} />)}
-  </div>
-
-  {latest.backlog.length > 0 && (
-    <>
-      <h2>Backlog</h2>
-      <ul class="backlog">
-        {latest.backlog.map((b) => (
-          <li data-tags={b.tags.join(" ")}>
-            <a href={b.url} target="_blank" rel="noopener">{b.title}</a>
-            <span class="muted"> — {b.gloss}</span>
-          </li>
-        ))}
-      </ul>
-    </>
-  )}
-  <p><a class="chip" href="/archive/">Browse all past weeks in the archive →</a></p>
 
   {sections.map((s) => (
     <section id={s.id}>
@@ -49,7 +51,7 @@ import { sections } from "../data/panels";
           return (
             <a class="card panel" href={p.href} {...(external && { target: "_blank", rel: "noopener" })}>
               {p.emoji && <div class="emoji" aria-hidden="true">{p.emoji}</div>}
-              <h3>{p.title}{external && " ↗"}</h3>
+              <h3 class:list={[p.title.length > 60 && "long"]}>{p.title}{external && " ↗"}</h3>
               {p.meta && <div class="mono muted">{p.meta}</div>}
               <p>{p.description}</p>
             </a>
