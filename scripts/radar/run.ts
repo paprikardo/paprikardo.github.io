@@ -6,7 +6,7 @@
 //   node scripts/radar/run.ts            # full run
 //   node scripts/radar/run.ts --dry-run  # fetch + pre-filter only, no Claude calls, writes nothing
 import { spawn } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { z } from "zod";
 import { tags, type TagId } from "../../src/data/tags.ts";
 import { arxiv, biorxiv, pubmed, type Paper } from "./sources.ts";
@@ -21,6 +21,7 @@ const BACKLOG_N = 25;
 const BACKLOG_MIN = 5;
 
 const DRY = process.argv.includes("--dry-run");
+const REUSE = process.argv.includes("--reuse"); // local debugging: reuse last fetch instead of re-downloading
 const root = new URL("../../", import.meta.url);
 
 // ---------- 1. fetch ----------
@@ -38,11 +39,20 @@ const settle = async (name: string, p: Promise<Paper[]>) => {
     return [];
   }
 };
-const fetched = (await Promise.all([
-  settle("arxiv", arxiv(since)),
-  settle("biorxiv", biorxiv(since, until)),
-  settle("pubmed", pubmed(DAYS)),
-])).flat();
+const cacheFile = new URL("node_modules/.cache/radar-fetched.json", root);
+let fetched: Paper[];
+if (REUSE && existsSync(cacheFile)) {
+  fetched = JSON.parse(readFileSync(cacheFile, "utf8"));
+  console.log(`reusing ${fetched.length} cached papers`);
+} else {
+  fetched = (await Promise.all([
+    settle("arxiv", arxiv(since)),
+    settle("biorxiv", biorxiv(since, until)),
+    settle("pubmed", pubmed(DAYS)),
+  ])).flat();
+  mkdirSync(new URL("node_modules/.cache/", root), { recursive: true });
+  writeFileSync(cacheFile, JSON.stringify(fetched));
+}
 
 // dedupe by id and by normalised title (PubMed often re-lists preprints)
 const seen = new Set<string>();
@@ -90,7 +100,8 @@ const system =
   "\n\n## Tag ids\n" +
   tagEntries.map(([id, t]) => `- ${id}: ${t.label} — ${t.description}`).join("\n");
 
-const schema = JSON.stringify(z.toJSONSchema(Scored));
+const { $schema: _drop, ...jsonSchema } = z.toJSONSchema(Scored); // CLI rejects the $schema meta key
+const schema = JSON.stringify(jsonSchema);
 
 // One `claude -p` call per batch: no tools, our own system prompt, schema-validated JSON out.
 function claude(prompt: string): Promise<unknown> {
@@ -117,7 +128,9 @@ function claude(prompt: string): Promise<unknown> {
   });
 }
 
-async function score(batch: Paper[], attempt = 1): Promise<z.infer<typeof Scored>["papers"]> {
+// On failure (e.g. a safety-classifier refusal triggered by one abstract), split the batch
+// and retry the halves, so only the offending paper is dropped instead of the whole batch.
+async function score(batch: Paper[]): Promise<z.infer<typeof Scored>["papers"]> {
   const payload = batch.map((p) => ({ id: p.id, title: p.title, venue: p.venue, abstract: p.abstract }));
   try {
     const parsed = Scored.parse(await claude(
@@ -125,8 +138,12 @@ async function score(batch: Paper[], attempt = 1): Promise<z.infer<typeof Scored
     ));
     return parsed.papers;
   } catch (e) {
-    if (attempt < 2) return score(batch, attempt + 1);
-    throw e;
+    if (batch.length === 1) {
+      console.warn(`skipped "${batch[0].title.slice(0, 60)}": ${(e as Error).message.split("\n")[0]}`);
+      return [];
+    }
+    const mid = Math.ceil(batch.length / 2);
+    return [...(await score(batch.slice(0, mid))), ...(await score(batch.slice(mid)))];
   }
 }
 
@@ -186,7 +203,7 @@ const out = {
   generated: until.toISOString(),
   model: "claude-haiku (via Claude Code)",
   picks: picks.map(({ paper: p, ...r }) => ({
-    title: p.title,
+    title: p.title.replace(/\.$/, ""),
     authors: authors(p.authors),
     venue: p.venue,
     date: fmtDate(p.date),
@@ -198,7 +215,7 @@ const out = {
     summary: r.summary,
     abstract: p.abstract,
   })),
-  backlog: backlog.map(({ paper: p, ...r }) => ({ title: p.title, url: p.url, tags: r.tags, gloss: r.gloss })),
+  backlog: backlog.map(({ paper: p, ...r }) => ({ title: p.title.replace(/\.$/, ""), url: p.url, tags: r.tags, gloss: r.gloss })),
 };
 
 const file = new URL(`src/data/papers/${week}.json`, root);

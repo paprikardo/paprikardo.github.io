@@ -9,8 +9,7 @@ const { title, description = profile.headline } = Astro.props;
 const pageTitle = title ? `${title} · ${profile.name}` : profile.name;
 const path = Astro.url.pathname;
 const nav = [
-  { href: "/", label: "Radar" },
-  { href: "/archive/", label: "Archive" },
+  { href: "/", label: "Radar", match: "/archive/" },
   { href: "/#projects", label: "Projects" },
   { href: "/#others", label: "Others", match: "/lifetime/" },
 ];

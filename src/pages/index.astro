@@ -7,7 +7,10 @@ import { sections } from "../data/panels";
 ---
 <Base>
   <section style="margin-top:2.2rem">
-    <p class="mono muted" style="margin:0">Paper radar · {latest.week}</p>
+    <div class="radar-head">
+      <p class="mono muted" style="margin:0">Paper radar · {latest.week}</p>
+      <a class="chip" href="/archive/">Archive →</a>
+    </div>
     <h1>{latest.title ?? `Week ${latest.week}`}</h1>
     <p class="muted" style="margin-top:0">
       {latest.range}{latest.screened != null && ` · ${latest.screened} papers screened`}
@@ -35,7 +38,7 @@ import { sections } from "../data/panels";
       </ul>
     </>
   )}
-  <p><a href="/archive/">All weeks →</a></p>
+  <p><a class="chip" href="/archive/">Browse all past weeks in the archive →</a></p>
 
   {sections.map((s) => (
     <section id={s.id}>
