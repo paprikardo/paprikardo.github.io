@@ -40,7 +40,7 @@ export const sections: Section[] = [
     panels: [
       {
         title: "Lifetime calculator",
-        description: "Your life in weeks — one dot per week, one row per year.",
+        description: "Your life as an hourglass — one grain of sand per week.",
         href: "/lifetime/",
         emoji: "⏳",
       },

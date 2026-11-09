@@ -1,40 +1,31 @@
 ---
 import Base from "../layouts/Base.astro";
-// Phase boundaries in years. Edit to taste.
-const CHILD_UNTIL = 12, TEEN_UNTIL = 21, RETIRE_AT = 65;
+import "../styles/life.css";
 ---
-<Base title="Lifetime calculator" description="Your life in weeks — one dot per week, one row per year.">
-  <section style="margin-top:2.2rem">
-    <h1>Lifetime calculator</h1>
-    <p class="muted" style="margin-top:0">
-      Time is limited. Counted in weeks, a life suddenly feels short. Enter your birthday, an expected age
-      (the Swiss average is about 82 for men and 86 for women) and the age at which you expect to become less active.
+<Base title="Lifetime calculator" description="Your life as an hourglass — one grain of sand per week.">
+  <div class="life-root">
+    <section style="margin-top:2.2rem">
+      <h1>Lifetime calculator</h1>
+      <p class="muted" style="margin-top:0">
+        Every grain of sand is one week of your life. What has fallen is lived; what is still on top is ahead of you.
+        Enter your birthday, an expected age (the Swiss average is about 82 for men and 86 for women) and the age at
+        which you expect to become less active. Hover or tap a grain to see which week it is.
+      </p>
+    </section>
+
+    <form class="card life-form" id="life-form" onsubmit="return false">
+      <label>Birthday<input type="date" name="birth" value="2000-01-01" required /></label>
+      <label>Expected age<input type="number" name="exp" value="84" min="1" max="120" required /></label>
+      <label>Inactive from age<input type="number" name="inactive" value="75" min="1" max="120" required /></label>
+    </form>
+
+    <p class="life-stats" id="life-stats" aria-live="polite"></p>
+    <div id="hourglass"></div>
+
+    <p class="muted" style="margin-top:1.5rem">
+      This can feel intimidating. It can also be motivation not to miss out on what you really want to do.
     </p>
-  </section>
-
-  <form class="card life-form" id="life-form" onsubmit="return false">
-    <label>Birthday<input type="date" name="birth" value="2000-01-01" required /></label>
-    <label>Expected age<input type="number" name="exp" value="84" min="1" max="120" required /></label>
-    <label>Inactive from age<input type="number" name="inactive" value="75" min="1" max="120" required /></label>
-  </form>
-
-  <p class="life-stats" id="life-stats" aria-live="polite"></p>
-
-  <div class="legend mono">
-    <span><i style="background:var(--phase-child)"></i>Childhood (&lt;{CHILD_UNTIL})</span>
-    <span><i style="background:var(--phase-teen)"></i>Teens ({CHILD_UNTIL}–{TEEN_UNTIL - 1})</span>
-    <span><i style="background:var(--phase-adult)"></i>Adulthood</span>
-    <span><i style="background:var(--phase-retired)"></i>Retired ({RETIRE_AT}+)</span>
-    <span><i style="background:var(--phase-inactive)"></i>Inactive</span>
-    <span><i style="background:var(--here)"></i>You are here</span>
   </div>
-  <p class="muted mono" style="margin:.4rem 0 .8rem">Each dot is one week · each row is one year · faded dots are behind you.</p>
-
-  <div class="weeks" id="weeks" role="img" aria-label="Grid of the weeks of your life"></div>
-
-  <p class="muted" style="margin-top:1.5rem">
-    This can feel intimidating. It can also be motivation not to miss out on what you really want to do.
-  </p>
 </Base>
 
 <style>
@@ -44,71 +35,50 @@ const CHILD_UNTIL = 12, TEEN_UNTIL = 21, RETIRE_AT = 65;
     font: inherit; font-size: 1rem; color: var(--text); background: var(--bg);
     border: 1px solid var(--border); border-radius: 8px; padding: .5rem .6rem; min-height: 42px;
   }
-  .life-stats { font-size: 1.05rem; margin: 1.2rem 0 .8rem; min-height: 1.6em; }
-  .legend { display: flex; flex-wrap: wrap; gap: .4rem 1rem; color: var(--muted); }
-  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: .35rem; vertical-align: -1px; }
-  .weeks { display: grid; grid-template-columns: repeat(52, 1fr); gap: 2px; }
-  .weeks :global(span) { aspect-ratio: 1; border-radius: 50%; }
-  .weeks :global(.past) { opacity: var(--phase-past-opacity); }
-  .weeks :global(.here) { background: var(--here) !important; opacity: 1; transform: scale(1.6); box-shadow: 0 0 0 2px var(--bg); }
-  @media (min-width: 640px) { .weeks { gap: 3px; } }
+  .life-stats { font-size: 1.05rem; margin: 1.2rem 0 0; min-height: 1.6em; }
 </style>
 
-<script is:inline define:vars={{ CHILD_UNTIL, TEEN_UNTIL, RETIRE_AT }}>
-  const form = document.getElementById("life-form");
-  const grid = document.getElementById("weeks");
-  const stats = document.getElementById("life-stats");
-  const fmt = (n) => n.toLocaleString("en-US");
+<script>
+  import { fmtN, makeLife } from "../lib/life";
+  import { renderHourglass } from "../lib/viz-hourglass";
+
+  const form = document.getElementById("life-form") as HTMLFormElement;
+  const stats = document.getElementById("life-stats")!;
+  const target = document.getElementById("hourglass")!;
+  const field = (n: string) => form.elements.namedItem(n) as HTMLInputElement;
 
   try {
     const saved = JSON.parse(localStorage.getItem("lifetime") || "null");
-    if (saved) for (const k in saved) if (form.elements[k]) form.elements[k].value = saved[k];
+    if (saved) for (const k of ["birth", "exp", "inactive"]) if (saved[k] != null) field(k).value = saved[k];
   } catch {}
 
+  let stop = () => {};
   function render() {
-    const birth = new Date(form.elements.birth.value + "T00:00:00");
-    const exp = Math.round(+form.elements.exp.value);
-    const inactive = Math.round(+form.elements.inactive.value);
-    const today = new Date();
-    if (isNaN(birth) || birth >= today || !(exp > 0 && exp <= 120) || !(inactive > 0 && inactive <= 120)) {
+    const birth = new Date(field("birth").value + "T00:00:00");
+    const exp = Math.round(+field("exp").value), inactive = Math.round(+field("inactive").value);
+    if (isNaN(+birth) || birth >= new Date() || !(exp > 0 && exp <= 120) || !(inactive > 0 && inactive <= 120)) {
       stats.textContent = "Please enter a birthday in the past and ages between 1 and 120.";
-      grid.replaceChildren();
+      stop(); target.replaceChildren();
       return;
     }
-    try { localStorage.setItem("lifetime", JSON.stringify({ birth: form.elements.birth.value, exp, inactive })); } catch {}
-
-    // current position: full years of age + week within the current year of life
-    let age = today.getFullYear() - birth.getFullYear();
-    const lastBirthday = new Date(birth); lastBirthday.setFullYear(birth.getFullYear() + age);
-    if (lastBirthday > today) { age--; lastBirthday.setFullYear(lastBirthday.getFullYear() - 1); }
-    const weekInYear = Math.min(51, Math.floor((today - lastBirthday) / 6048e5));
-    const hereIndex = age * 52 + weekInYear;
-
-    const total = exp * 52;
-    const lived = Math.floor((today - birth) / 6048e5);
-    const left = Math.max(0, total - hereIndex);
-    const activeLeft = Math.max(0, Math.min(inactive, exp) * 52 - hereIndex);
-    stats.innerHTML = hereIndex >= total
-      ? `You've lived <b>${fmt(lived)}</b> weeks — past your expected age. Every week is a bonus.`
-      : `You've lived <b>${fmt(lived)}</b> weeks (${Math.round((hereIndex / total) * 100)}%). ` +
-        `About <b>${fmt(left)}</b> remain, <b>${fmt(activeLeft)}</b> of them active.`;
-
-    const phase = (y) =>
-      y >= inactive ? "--phase-inactive" : y >= RETIRE_AT ? "--phase-retired" :
-      y >= TEEN_UNTIL ? "--phase-adult" : y >= CHILD_UNTIL ? "--phase-teen" : "--phase-child";
-
-    const frag = document.createDocumentFragment();
-    const rows = Math.max(exp, age + 1);
-    for (let i = 0; i < rows * 52; i++) {
-      const s = document.createElement("span");
-      s.style.background = `var(${phase(Math.floor(i / 52))})`;
-      if (i < hereIndex) s.className = "past";
-      else if (i === hereIndex) { s.className = "here"; s.title = "You are here"; }
-      frag.appendChild(s);
-    }
-    grid.replaceChildren(frag);
+    try { localStorage.setItem("lifetime", JSON.stringify({ birth: field("birth").value, exp, inactive })); } catch {}
+    const life = makeLife(birth, exp, inactive);
+    const left = Math.max(0, life.total - life.here);
+    const activeEnd = Math.min(inactive, exp) * 52;
+    stats.innerHTML = life.here >= exp * 52
+      ? `You've lived <b>${fmtN(life.lived)}</b> weeks — past your expected age. Every week is a bonus.`
+      : `You've lived <b>${fmtN(life.lived)}</b> weeks (${Math.round((life.here / life.total) * 100)}%). ` +
+        `About <b>${fmtN(left)}</b> remain, <b>${fmtN(Math.max(0, activeEnd - life.here))}</b> of them active.`;
+    stop();
+    stop = renderHourglass(target, life);
   }
 
-  form.addEventListener("input", render);
+  let timer = 0;
+  const later = () => { clearTimeout(timer); timer = window.setTimeout(render, 150); };
+  form.addEventListener("input", later);
+  let lastW = innerWidth;
+  addEventListener("resize", () => { if (innerWidth !== lastW) { lastW = innerWidth; later(); } });
+  new MutationObserver(later).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", later);
   render();
 </script>

@@ -4,7 +4,6 @@ export type PhaseKey = "child" | "youth" | "adult" | "retired" | "inactive";
 export type Phase = {
   key: PhaseKey;
   label: string;
-  description: string;
   startAge: number;
   endAge: number;
   start: number; // first week index (inclusive)
@@ -34,12 +33,12 @@ export type WeekInfo = {
   relative: string;
 };
 
-const PHASES: { key: PhaseKey; label: string; description: string }[] = [
-  { key: "child", label: "Childhood", description: "Learning to walk, talk and read — years mostly shaped by others." },
-  { key: "youth", label: "Youth", description: "School, first friendships, figuring out who you are." },
-  { key: "adult", label: "Adulthood", description: "Work, relationships and the bulk of your independent years." },
-  { key: "retired", label: "Retirement", description: "Free time while you are still active and healthy." },
-  { key: "inactive", label: "Inactive years", description: "Time when the body slows down and options narrow." },
+const PHASES: { key: PhaseKey; label: string }[] = [
+  { key: "child", label: "Childhood" },
+  { key: "youth", label: "Youth" },
+  { key: "adult", label: "Adulthood" },
+  { key: "retired", label: "Retirement" },
+  { key: "inactive", label: "Inactive years" },
 ];
 export const CHILD_UNTIL = 12, YOUTH_UNTIL = 21, RETIRE_AT = 65;
 const WEEK_MS = 6048e5;
@@ -51,6 +50,15 @@ export function span(weeks: number) {
   const y = Math.floor(weeks / 52), w = weeks % 52;
   if (y === 0) return `${w} week${w === 1 ? "" : "s"}`;
   return w ? `${y} year${y === 1 ? "" : "s"} ${w} week${w === 1 ? "" : "s"}` : `${y} year${y === 1 ? "" : "s"}`;
+}
+
+/** "3 years and 2 months", "5 months", "2 weeks" for a distance in weeks. */
+export function ym(weeks: number) {
+  const months = Math.round((weeks * 7) / 30.4375);
+  if (months < 1) return `${weeks} week${weeks === 1 ? "" : "s"}`;
+  const y = Math.floor(months / 12), m = months % 12;
+  const ys = `${y} year${y === 1 ? "" : "s"}`, ms = `${m} month${m === 1 ? "" : "s"}`;
+  return y && m ? `${ys} and ${ms}` : y ? ys : ms;
 }
 
 export function makeLife(birth: Date, exp: number, inactive: number, today = new Date()): Life {
@@ -83,7 +91,7 @@ export function makeLife(birth: Date, exp: number, inactive: number, today = new
     return {
       index: i, age: a, weekOfYear: w + 1, date, phase: phaseOf(i),
       when: d < 0 ? "past" : d === 0 ? "now" : "future",
-      relative: d === 0 ? "this week" : d < 0 ? `${span(-d)} ago` : `in ${span(d)}`,
+      relative: d === 0 ? "this week" : d < 0 ? `${ym(-d)} ago` : `in ${ym(d)}`,
     };
   };
 
@@ -91,9 +99,9 @@ export function makeLife(birth: Date, exp: number, inactive: number, today = new
 }
 
 export function describe(w: WeekInfo) {
-  return `<b>Week ${fmtN(w.index + 1)}</b> · age ${w.age}, week ${w.weekOfYear}<br>` +
-    `<span class="tip-phase tip-${w.phase.key}"></span><b>${w.phase.label}</b> — ${w.phase.description}<br>` +
-    `<span class="tip-muted">${fmtDate(w.date)} · ${w.relative}</span>`;
+  return `<b>Week ${fmtN(w.index + 1)}</b><br>` +
+    `<span class="tip-phase tip-${w.phase.key}"></span>${w.phase.label}<br>` +
+    `<span class="tip-muted">${w.relative}</span>`;
 }
 
 export { fmtN };
