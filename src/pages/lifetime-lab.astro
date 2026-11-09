@@ -1,0 +1,84 @@
+---
+// Local comparison page for three lifetime visualisations. Not linked from the nav.
+import Base from "../layouts/Base.astro";
+import "../styles/life.css";
+---
+<Base title="Lifetime lab" description="Three ways to see your life in weeks.">
+  <div class="life-root">
+    <section style="margin-top:2.2rem">
+      <p class="mono muted" style="margin:0">Experiment · pick one</p>
+      <h1>Lifetime lab</h1>
+      <p class="muted" style="margin-top:0">Same inputs, three visualisations. Hover (or tap) any part for details.</p>
+    </section>
+
+    <form class="card lab-form" id="lab-form" onsubmit="return false">
+      <label>Birthday<input type="date" name="birth" value="2000-01-01" required /></label>
+      <label>Expected age<input type="number" name="exp" value="84" min="1" max="120" required /></label>
+      <label>Inactive from age<input type="number" name="inactive" value="75" min="1" max="120" required /></label>
+    </form>
+    <p class="muted" id="lab-error" hidden>Please enter a birthday in the past and ages between 1 and 120.</p>
+
+    <h2>A · Dot grid <span class="mono muted">(improved colours)</span></h2>
+    <p class="muted">One dot per week, one row per year. Solid = lived, tinted = still ahead. Hover a legend chip to isolate a phase.</p>
+    <div id="viz-grid"></div>
+
+    <h2>B · Hourglass</h2>
+    <p class="muted">Every grain is a week. Lived weeks have fallen to the bottom — layered from childhood upwards; the next weeks wait just above the neck.</p>
+    <div id="viz-hourglass"></div>
+
+    <h2>C · Loading screen</h2>
+    <p class="muted">Your life as a progress bar.</p>
+    <div class="card" id="viz-loading"></div>
+  </div>
+</Base>
+
+<style>
+  .lab-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .8rem; margin-top: 1rem; }
+  .lab-form label { display: flex; flex-direction: column; gap: .3rem; font-size: .85rem; color: var(--muted); }
+  .lab-form input {
+    font: inherit; font-size: 1rem; color: var(--text); background: var(--bg);
+    border: 1px solid var(--border); border-radius: 8px; padding: .5rem .6rem; min-height: 42px;
+  }
+</style>
+
+<script>
+  import { makeLife } from "../lib/life";
+  import { renderGrid } from "../lib/viz-grid";
+  import { renderHourglass } from "../lib/viz-hourglass";
+  import { renderLoading } from "../lib/viz-loading";
+
+  const form = document.getElementById("lab-form") as HTMLFormElement;
+  const err = document.getElementById("lab-error")!;
+  const field = (n: string) => form.elements.namedItem(n) as HTMLInputElement;
+  const targets = ["viz-grid", "viz-hourglass", "viz-loading"].map((id) => document.getElementById(id)!);
+
+  try {
+    const saved = JSON.parse(localStorage.getItem("lifetime") || "null");
+    if (saved) for (const k of ["birth", "exp", "inactive"]) if (saved[k] != null) field(k).value = saved[k];
+  } catch {}
+
+  let stopHourglass = () => {};
+  function render() {
+    const birth = new Date(field("birth").value + "T00:00:00");
+    const exp = Math.round(+field("exp").value), inactive = Math.round(+field("inactive").value);
+    const ok = !isNaN(+birth) && birth < new Date() && exp > 0 && exp <= 120 && inactive > 0 && inactive <= 120;
+    err.hidden = ok;
+    if (!ok) return;
+    try { localStorage.setItem("lifetime", JSON.stringify({ birth: field("birth").value, exp, inactive })); } catch {}
+    const life = makeLife(birth, exp, inactive);
+    renderGrid(targets[0], life);
+    stopHourglass();
+    stopHourglass = renderHourglass(targets[1], life);
+    renderLoading(targets[2], life);
+  }
+
+  let timer = 0;
+  const later = () => { clearTimeout(timer); timer = window.setTimeout(render, 150); };
+  form.addEventListener("input", later);
+  let lastW = innerWidth;
+  addEventListener("resize", () => { if (innerWidth !== lastW) { lastW = innerWidth; later(); } });
+  // re-render canvas colours when the theme changes
+  new MutationObserver(later).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", later);
+  render();
+</script>
