@@ -6,7 +6,7 @@ import { profile } from "../data/profile";
     <img src={profile.photo} alt={profile.name} width="88" height="88" loading="lazy" />
     <div>
       <h2>{profile.name}</h2>
-      <p><strong>{profile.headline}</strong><br />{profile.about}</p>
+      <p><strong>{profile.headline}</strong>{profile.about && <><br />{profile.about}</>}</p>
       <div class="chips">
         <a class="chip" href={profile.linkedin} rel="me noopener" target="_blank">LinkedIn ↗</a>
         <a class="chip" href={profile.github} rel="me noopener" target="_blank">GitHub ↗</a>

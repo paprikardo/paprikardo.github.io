@@ -3,7 +3,7 @@ import Base from "../layouts/Base.astro";
 import PaperCard from "../components/PaperCard.astro";
 import TagFilter from "../components/TagFilter.astro";
 import { latest } from "../data/papers";
-import { panels } from "../data/panels";
+import { sections } from "../data/panels";
 ---
 <Base>
   <section style="margin-top:2.2rem">
@@ -37,14 +37,22 @@ import { panels } from "../data/panels";
   )}
   <p><a href="/archive/">All weeks →</a></p>
 
-  <h2>Projects</h2>
-  <div class="panels">
-    {panels.map((p) => (
-      <a class="card panel" href={p.href}>
-        {p.emoji && <div class="emoji" aria-hidden="true">{p.emoji}</div>}
-        <h3>{p.title}</h3>
-        <p>{p.description}</p>
-      </a>
-    ))}
-  </div>
+  {sections.map((s) => (
+    <section id={s.id}>
+      <h2>{s.title}</h2>
+      <div class="panels">
+        {s.panels.map((p) => {
+          const external = /^https?:/.test(p.href);
+          return (
+            <a class="card panel" href={p.href} {...(external && { target: "_blank", rel: "noopener" })}>
+              {p.emoji && <div class="emoji" aria-hidden="true">{p.emoji}</div>}
+              <h3>{p.title}{external && " ↗"}</h3>
+              {p.meta && <div class="mono muted">{p.meta}</div>}
+              <p>{p.description}</p>
+            </a>
+          );
+        })}
+      </div>
+    </section>
+  ))}
 </Base>

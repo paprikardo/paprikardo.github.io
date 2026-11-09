@@ -1,0 +1,48 @@
+name: Paper radar
+
+# Every Monday 05:00 UTC, or by hand from the Actions tab.
+# Deliberately NO pull_request trigger: the API key secret is never exposed to code from forks/PRs.
+on:
+  schedule:
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write # commit the new week file; nothing else
+
+concurrency:
+  group: radar
+  cancel-in-progress: false
+
+jobs:
+  radar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Fetch and rank papers
+        run: node scripts/radar/run.ts
+        env:
+          # Your Claude Pro subscription login, created once with `claude setup-token`.
+          # Stored encrypted in repo Settings → Secrets → Actions; GitHub masks it in logs.
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+      - name: Check the site still builds
+        run: npm run build
+
+      - name: Commit the new week
+        run: |
+          git config user.name "paper-radar[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/data/papers/
+          git diff --cached --quiet && { echo "No changes"; exit 0; }
+          git commit -m "Paper radar: $(date -u +%G-W%V)"
+          git push

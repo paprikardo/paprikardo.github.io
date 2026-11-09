@@ -95,7 +95,8 @@ h3 { font-size: 1.08rem; margin: .35rem 0; }
 .nav a[aria-current="page"] { color: var(--text); }
 .nav .short { display: none; }
 @media (max-width: 480px) {
-  .nav .wrap { gap: .8rem; }
+  .nav .wrap { gap: .7rem; }
+  .nav a:not(.brand) { font-size: .85rem; }
   .nav .full { display: none; }
   .nav .short { display: inline; }
 }

@@ -4,11 +4,16 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "preview": "astro preview"
+    "preview": "astro preview",
+    "radar": "node scripts/radar/run.ts",
+    "radar:dry": "node scripts/radar/run.ts --dry-run"
   },
   "type": "module",
   "dependencies": {
     "astro": "^7.4.7"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "zod": "^4.6.7"
+  }
 }
