@@ -1,0 +1,29 @@
+---
+import Base from "../layouts/Base.astro";
+import PaperCard from "../components/PaperCard.astro";
+import TagFilter from "../components/TagFilter.astro";
+import { weeks } from "../data/papers";
+---
+<Base title="Archive" description="Every week of the paper radar.">
+  <section style="margin-top:2.2rem">
+    <h1>Archive</h1>
+    <p class="muted" style="margin-top:0">Every pick and backlog entry, newest week first.</p>
+  </section>
+  <TagFilter />
+  {weeks.map((w) => (
+    <section>
+      <h2>{w.title ?? `Week ${w.week}`} <span class="mono muted">{w.range}</span></h2>
+      <div class="stack">{w.picks.map((p) => <PaperCard paper={p} />)}</div>
+      {w.backlog.length > 0 && (
+        <ul class="backlog">
+          {w.backlog.map((b) => (
+            <li data-tags={b.tags.join(" ")}>
+              <a href={b.url} target="_blank" rel="noopener">{b.title}</a>
+              <span class="muted"> — {b.gloss}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  ))}
+</Base>

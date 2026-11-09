@@ -1,0 +1,50 @@
+---
+import Base from "../layouts/Base.astro";
+import PaperCard from "../components/PaperCard.astro";
+import TagFilter from "../components/TagFilter.astro";
+import { latest } from "../data/papers";
+import { panels } from "../data/panels";
+---
+<Base>
+  <section style="margin-top:2.2rem">
+    <p class="mono muted" style="margin:0">Paper radar · {latest.week}</p>
+    <h1>{latest.title ?? `Week ${latest.week}`}</h1>
+    <p class="muted" style="margin-top:0">
+      {latest.range}{latest.screened != null && ` · ${latest.screened} papers screened`}
+    </p>
+    {latest.note && <p class="notice">{latest.note}</p>}
+  </section>
+
+  <TagFilter />
+
+  <h2>Top picks</h2>
+  <div class="stack">
+    {latest.picks.map((p) => <PaperCard paper={p} />)}
+  </div>
+
+  {latest.backlog.length > 0 && (
+    <>
+      <h2>Backlog</h2>
+      <ul class="backlog">
+        {latest.backlog.map((b) => (
+          <li data-tags={b.tags.join(" ")}>
+            <a href={b.url} target="_blank" rel="noopener">{b.title}</a>
+            <span class="muted"> — {b.gloss}</span>
+          </li>
+        ))}
+      </ul>
+    </>
+  )}
+  <p><a href="/archive/">All weeks →</a></p>
+
+  <h2>Projects</h2>
+  <div class="panels">
+    {panels.map((p) => (
+      <a class="card panel" href={p.href}>
+        {p.emoji && <div class="emoji" aria-hidden="true">{p.emoji}</div>}
+        <h3>{p.title}</h3>
+        <p>{p.description}</p>
+      </a>
+    ))}
+  </div>
+</Base>

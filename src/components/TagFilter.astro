@@ -1,0 +1,23 @@
+---
+// Tag chips that show/hide any element with a matching data-tags attribute on the page.
+import { tags } from "../data/tags";
+---
+<div class="chips" id="tag-filter" role="group" aria-label="Filter by tag">
+  <button class="chip" data-tag="" aria-pressed="true">All</button>
+  {Object.entries(tags).map(([id, t]) => (
+    <button class="chip" data-tag={id} aria-pressed="false" title={t.description}>{t.label}</button>
+  ))}
+</div>
+
+<script>
+  const bar = document.getElementById("tag-filter")!;
+  bar.addEventListener("click", (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-tag]");
+    if (!btn) return;
+    const tag = btn.dataset.tag!;
+    bar.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+    document.querySelectorAll<HTMLElement>("[data-tags]").forEach((el) => {
+      el.hidden = !!tag && !el.dataset.tags!.split(" ").includes(tag);
+    });
+  });
+</script>

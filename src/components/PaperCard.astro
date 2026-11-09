@@ -1,0 +1,24 @@
+---
+import type { Pick } from "../data/papers";
+import { tags } from "../data/tags";
+interface Props { paper: Pick }
+const { paper: p } = Astro.props;
+---
+<article class="card paper" data-tags={p.tags.join(" ")}>
+  <div class="meta-top">
+    <span class:list={["label", p.label === "track" && "track"]}>{p.label}</span>
+    <span class="mono">{p.tags.map((t) => tags[t]?.label ?? t).join(" · ")}</span>
+    {p.score != null && <span class="mono">{p.score.toFixed(2)}</span>}
+  </div>
+  <h3><a href={p.url} target="_blank" rel="noopener">{p.title}</a></h3>
+  <div class="mono muted">{p.authors} · {p.venue} · {p.date}</div>
+  <p>{p.summary}</p>
+  <div class="links mono">
+    <a href={p.url} target="_blank" rel="noopener">doi</a>
+    {p.pdf && <a href={p.pdf} target="_blank" rel="noopener">pdf</a>}
+    {p.code && <a href={p.code} target="_blank" rel="noopener">code</a>}
+  </div>
+  {p.abstract && (
+    <details><summary class="mono">abstract</summary><p>{p.abstract}</p></details>
+  )}
+</article>

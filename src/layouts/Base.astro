@@ -1,0 +1,54 @@
+---
+// Page shell used by every page: <head>, nav, content slot, profile banner.
+import "../styles/theme.css";
+import ProfileBanner from "../components/ProfileBanner.astro";
+import { profile } from "../data/profile";
+
+interface Props { title?: string; description?: string }
+const { title, description = profile.headline } = Astro.props;
+const pageTitle = title ? `${title} · ${profile.name}` : profile.name;
+const path = Astro.url.pathname;
+const nav = [
+  { href: "/", label: "Radar" },
+  { href: "/archive/", label: "Archive" },
+  { href: "/lifetime/", label: "Lifetime" },
+];
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{pageTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <script is:inline>
+      try { const t = localStorage.getItem("theme"); if (t) document.documentElement.dataset.theme = t; } catch {}
+    </script>
+  </head>
+  <body>
+    <header class="nav">
+      <div class="wrap">
+        <a class="brand" href="/"><span class="full">{profile.name}</span><span class="short">{profile.name.split(" ").map((w) => w[0]).join("")}</span></a>
+        {nav.map((n) => (
+          <a href={n.href} aria-current={path === n.href ? "page" : undefined}>{n.label}</a>
+        ))}
+        <button class="theme-btn" id="theme-btn" aria-label="Toggle dark mode" title="Toggle dark mode">◐</button>
+      </div>
+    </header>
+    <main class="wrap">
+      <slot />
+    </main>
+    <ProfileBanner />
+    <script is:inline>
+      document.getElementById("theme-btn").addEventListener("click", () => {
+        const root = document.documentElement;
+        const dark = root.dataset.theme
+          ? root.dataset.theme === "dark"
+          : matchMedia("(prefers-color-scheme: dark)").matches;
+        root.dataset.theme = dark ? "light" : "dark";
+        try { localStorage.setItem("theme", root.dataset.theme); } catch {}
+      });
+    </script>
+  </body>
+</html>
