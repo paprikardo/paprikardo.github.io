@@ -3,7 +3,7 @@
 // thumbs (JPEG Blob by attempt id), meta (key/value settings).
 
 const DB_NAME = 'singing-practice';
-const VERSION = 1;
+const VERSION = 2; // only ever add stores/indexes in upgrades; never drop user data
 let dbPromise;
 
 function open() {
@@ -12,13 +12,16 @@ function open() {
       const r = indexedDB.open(DB_NAME, VERSION);
       r.onupgradeneeded = () => {
         const d = r.result;
-        d.createObjectStore('exercises', { keyPath: 'id' });
-        d.createObjectStore('attempts', { keyPath: 'id' }).createIndex('exerciseId', 'exerciseId');
-        d.createObjectStore('videos');
-        d.createObjectStore('thumbs');
-        d.createObjectStore('meta');
+        const has = (n) => d.objectStoreNames.contains(n);
+        if (!has('exercises')) d.createObjectStore('exercises', { keyPath: 'id' });
+        if (!has('attempts')) d.createObjectStore('attempts', { keyPath: 'id' }).createIndex('exerciseId', 'exerciseId');
+        for (const n of ['videos', 'thumbs', 'meta', 'refs']) if (!has(n)) d.createObjectStore(n);
       };
-      r.onsuccess = () => resolve(r.result);
+      r.onsuccess = () => {
+        const d = r.result;
+        d.onversionchange = () => d.close(); // let a newer version of the app upgrade
+        resolve(d);
+      };
       r.onerror = () => reject(r.error);
     });
   }
@@ -77,8 +80,18 @@ export function deleteAttempts(ids) {
 }
 
 export function deleteExercise(id, attemptIds) {
-  return write(['exercises', 'attempts', 'videos', 'thumbs'], (t) => {
+  return write(['exercises', 'attempts', 'videos', 'thumbs', 'refs'], (t) => {
     t.objectStore('exercises').delete(id);
+    t.objectStore('refs').delete(id);
     for (const a of attemptIds) ['attempts', 'videos', 'thumbs'].forEach((s) => t.objectStore(s).delete(a));
+  });
+}
+
+// Reference track: the Blob lives in `refs` under the exercise id; metadata on exercise.ref.
+export function saveRef(exercise, blob) {
+  return write(['exercises', 'refs'], (t) => {
+    t.objectStore('exercises').put(exercise);
+    if (blob) t.objectStore('refs').put(blob, exercise.id);
+    else t.objectStore('refs').delete(exercise.id);
   });
 }

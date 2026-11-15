@@ -1,5 +1,6 @@
 import * as db from './db.js';
 import { makeZip, readZip, entryData } from './zip.js';
+import { canRecordInApp, mountRecorder, mountAudioRecorder } from './recorder.js';
 
 const app = document.getElementById('app');
 const sheet = document.getElementById('sheet');
@@ -38,6 +39,13 @@ function fmtRelative(t) {
 
 function extFor(a) {
   const m = (a.mime || '').toLowerCase();
+  if (m.startsWith('audio/')) {
+    if (m.includes('mpeg') || m.includes('mp3')) return 'mp3';
+    if (m.includes('mp4') || m.includes('m4a') || m.includes('aac')) return 'm4a';
+    if (m.includes('wav')) return 'wav';
+    if (m.includes('webm')) return 'webm';
+    if (m.includes('ogg')) return 'ogg';
+  }
   if (m.includes('quicktime')) return 'mov';
   if (m.includes('mp4')) return 'mp4';
   if (m.includes('webm')) return 'webm';
@@ -50,6 +58,7 @@ function stamp(t) {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
 }
 const videoFileName = (a) => `${stamp(a.createdAt)}_score${a.score}.${extFor(a)}`;
+const refPath = (e) => `references/${slug(e.name)}_${e.id.slice(0, 8)}.${extFor({ mime: e.ref.mime, fileName: e.ref.name }).replace('mov', 'm4a')}`;
 
 let pageURLs = [];
 let sheetURLs = [];
@@ -94,19 +103,27 @@ function requestPersist() {
 
 /* ---------- sheet (bottom dialog) ---------- */
 
+let sheetCleanup = null;
+function cleanupSheet() {
+  sheetCleanup?.();
+  sheetCleanup = null;
+  sheet.innerHTML = '';
+  sheetURLs.forEach(URL.revokeObjectURL);
+  sheetURLs = [];
+}
 function openSheet(html) {
+  // Callers create blob URLs while building `html`, so don't revoke URLs here.
+  sheetCleanup?.();
+  sheetCleanup = null;
   sheet.innerHTML = html;
-  sheet.showModal();
+  if (!sheet.open) sheet.showModal();
   return sheet;
 }
 function closeSheet() {
   if (sheet.open) sheet.close();
+  cleanupSheet();
 }
-sheet.addEventListener('close', () => {
-  sheet.innerHTML = '';
-  sheetURLs.forEach(URL.revokeObjectURL);
-  sheetURLs = [];
-});
+sheet.addEventListener('close', () => { if (!sheet.open) cleanupSheet(); });
 sheet.addEventListener('click', (e) => {
   if (e.target === sheet || e.target.closest('[data-close]')) closeSheet();
 });
@@ -172,12 +189,26 @@ function weekStrip() {
   return `<section class="week"><ol class="week-days">${days}</ol><p class="week-line">${line}</p></section>`;
 }
 
+function unbackedCounts() {
+  return {
+    recs: state.attempts.filter((a) => !a.backedUpAt).length,
+    refs: state.exercises.filter((e) => e.ref && !e.ref.backedUpAt).length,
+  };
+}
+
+function unbackedText({ recs, refs }) {
+  const parts = [];
+  if (recs) parts.push(plural(recs, 'recording'));
+  if (refs) parts.push(plural(refs, 'reference track'));
+  return `${parts.join(' and ')} ${recs + refs === 1 ? "isn't" : "aren't"} backed up yet.`;
+}
+
 function backupNudge() {
-  const unbacked = state.attempts.filter((a) => !a.backedUpAt).length;
-  if (!unbacked) return '';
+  const c = unbackedCounts();
+  if (!c.recs && !c.refs) return '';
   const stale = !state.lastBackupAt || Date.now() - state.lastBackupAt > BACKUP_NUDGE_DAYS * 864e5;
-  if (!stale && unbacked < 5) return '';
-  return `<a class="nudge" href="#/settings">${icons.backup}<span>${plural(unbacked, 'recording')} ${unbacked === 1 ? "isn't" : "aren't"} backed up yet. <u>Back up now</u></span></a>`;
+  if (!stale && c.recs + c.refs < 5) return '';
+  return `<a class="nudge" href="#/settings">${icons.backup}<span>${unbackedText(c)} <u>Back up now</u></span></a>`;
 }
 
 function viewHome() {
@@ -251,6 +282,7 @@ async function viewExercise(id) {
   const best = bestOf(list);
   const sorted = [...list].sort(state.sort === 'best' ? (a, b) => b.score - a.score || b.createdAt - a.createdAt : (a, b) => b.createdAt - a.createdAt);
   const videoFlags = await Promise.all(sorted.map((a) => db.has('videos', a.id)));
+  const refBlob = ex.ref ? await db.get('refs', id) : null;
 
   app.innerHTML = `
     <header class="top sub">
@@ -259,6 +291,7 @@ async function viewExercise(id) {
     </header>
     <h1 class="title ex-title">${esc(ex.name)}</h1>
     ${ex.notes ? `<p class="ex-notes">${esc(ex.notes)}</p>` : ''}
+    ${refSection(ex, refBlob)}
     ${list.length ? staffChart(list, best) : ''}
     ${list.length >= 2 ? `<a class="link-row" href="#/ex/${id}/compare">Compare first, best and latest</a>` : ''}
     ${list.length
@@ -270,8 +303,10 @@ async function viewExercise(id) {
          <ul class="attempts">${sorted.map((a, i) => attemptRow(a, best, videoFlags[i])).join('')}</ul>`
       : `<div class="empty"><p>Record yourself singing this, then score the attempt from 1 to 10. Short clips of 20 to 60 seconds are easiest to compare later.</p></div>`}
     <div class="bar two">
-      <label class="btn primary">${icons.rec}Record<input type="file" accept="video/*" capture="user" class="vh" data-pick></label>
-      <label class="btn">Choose video<input type="file" accept="video/*" class="vh" data-pick></label>
+      ${canRecordInApp()
+        ? `<a class="btn primary" href="#/ex/${id}/record">${icons.rec}Record</a>`
+        : `<label class="btn primary">${icons.rec}Record<input type="file" accept="video/*" capture="user" class="vh" data-pick></label>`}
+      <button class="btn" data-act="add-video">Add video</button>
     </div>`;
 
   const scroller = app.querySelector('.staff-scroll');
@@ -285,9 +320,9 @@ async function viewExercise(id) {
   }
 }
 
-function attemptSheet(file, exId) {
+function attemptSheet(file, exId, opts = {}) {
   const isVideo = (file.type || '').startsWith('video/') || /\.(mov|mp4|m4v|webm)$/i.test(file.name || '');
-  if (!isVideo) { toast("That file isn't a video."); return; }
+  if (!opts.recorded && !isVideo) { toast("That file isn't a video."); return; }
   const s = openSheet(`
     <form class="sheet-body" id="att-form">
       <h2>How did it go?</h2>
@@ -305,11 +340,11 @@ function attemptSheet(file, exId) {
     submit.textContent = 'Saving…';
     const video = form.querySelector('video');
     const thumb = await captureThumb(video).catch(() => null);
-    const mime = file.type || (/\.mp4$/i.test(file.name) ? 'video/mp4' : 'video/quicktime');
+    const mime = file.type || (/\.mp4$/i.test(file.name || '') ? 'video/mp4' : 'video/quicktime');
     const attempt = {
       id: uid(), exerciseId: exId, createdAt: Date.now(),
       score: Number(form.score.value), note: form.note.value.trim(),
-      duration: Number.isFinite(video.duration) ? video.duration : null,
+      duration: opts.duration ?? (Number.isFinite(video.duration) ? video.duration : null),
       mime, size: file.size, fileName: file.name || '', backedUpAt: null,
     };
     try {
@@ -325,6 +360,7 @@ function attemptSheet(file, exId) {
     state.attempts.push(attempt);
     if (state.attempts.length === 1) requestPersist();
     closeSheet();
+    if (opts.afterSave) { opts.afterSave(); return; }
     await viewExercise(exId);
     toast('Attempt saved');
   });
@@ -363,6 +399,125 @@ function exerciseSheet(ex) {
     closeSheet();
     location.hash = '#/';
     toast('Exercise deleted');
+  });
+}
+
+function refSection(ex, refBlob) {
+  if (refBlob) {
+    return `<section class="ref">
+      <div class="ref-head"><h2>Reference</h2><button class="text-btn" data-act="ref-sheet">Change</button></div>
+      <audio controls preload="metadata" src="${pageURL(refBlob)}"></audio>
+    </section>`;
+  }
+  if (ex.ref) return `<section class="ref"><p class="missing small">The reference track isn't on this phone. Restore the backup that contains it, or <button class="text-btn inline" data-act="ref-sheet">add a new one</button>.</p></section>`;
+  return `<section class="ref"><button class="link-row as-btn" data-act="ref-sheet">Add a reference track</button></section>`;
+}
+
+const AUDIO_EXT = /\.(mp3|m4a|aac|wav|aif|aiff|caf|flac|ogg|opus|mp4|mov|m4v|webm)$/i;
+
+async function saveRef(exId, blob, meta) {
+  const ex = exerciseOf(exId);
+  const mime = blob.type || (/\.mp3$/i.test(meta.name) ? 'audio/mpeg' : 'audio/mp4');
+  const data = new Blob([await blob.arrayBuffer()], { type: mime });
+  const rec = { ...ex, ref: { name: meta.name, mime, size: data.size, addedAt: Date.now(), backedUpAt: null }, updatedAt: Date.now() };
+  await db.saveRef(rec, data);
+  Object.assign(ex, rec);
+  requestPersist();
+}
+
+function refSheet(exId) {
+  const ex = exerciseOf(exId);
+  const s = openSheet(`
+    <div class="sheet-body">
+      <h2>Reference track</h2>
+      <p class="muted">Something to sing along to: a backing track, the original song, or your teacher singing the phrase. You can play it while you record.</p>
+      ${ex.ref ? `<p>Current: <strong>${esc(ex.ref.name)}</strong></p>` : ''}
+      <label class="btn">Choose a file<input type="file" accept="audio/*,video/*" class="vh" data-ref-file></label>
+      <p class="muted small">Audio files from the Files app, or a video from Photos (only its sound is used). For a Voice Memo, first tap Share → Save to Files in Voice Memos.</p>
+      <h3>Or record one now</h3>
+      <div data-mini-root></div>
+      <div class="mini-preview"></div>
+      <div class="actions">
+        ${ex.ref ? '<button type="button" class="btn danger" data-act-sheet="ref-remove">Remove</button>' : '<button type="button" class="btn" data-close>Cancel</button>'}
+        <button type="button" class="btn primary" data-act-sheet="ref-save" disabled>Save reference</button>
+      </div>
+      ${ex.ref ? '<button type="button" class="btn wide" data-close>Close</button>' : ''}
+    </div>`);
+  let pending = null;
+  const save = s.querySelector('[data-act-sheet=ref-save]');
+  const preview = s.querySelector('.mini-preview');
+  const offer = (blob, name) => {
+    pending = { blob, name };
+    preview.innerHTML = `<p class="small">${esc(name)}</p><audio controls preload="metadata" src="${sheetURL(blob)}"></audio>`;
+    save.disabled = false;
+  };
+  if (canRecordInApp()) {
+    sheetCleanup = mountAudioRecorder(s.querySelector('[data-mini-root]'), {
+      onRecorded: (blob) => offer(blob, `Recorded ${new Date().toLocaleDateString(loc, { day: 'numeric', month: 'short' })}`),
+    });
+  } else {
+    s.querySelector('[data-mini-root]').innerHTML = '<p class="muted small">Recording isn’t available in this browser.</p>';
+  }
+  s.querySelector('[data-ref-file]').addEventListener('change', (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    const ok = /^(audio|video)\//.test(f.type) || AUDIO_EXT.test(f.name);
+    if (!ok) { toast("That file isn't audio or video."); return; }
+    offer(f, f.name || 'Reference track');
+  });
+  save.addEventListener('click', async () => {
+    if (!pending) return;
+    save.disabled = true;
+    save.textContent = 'Saving…';
+    try {
+      await saveRef(exId, pending.blob, { name: pending.name });
+    } catch (err) {
+      save.disabled = false;
+      save.textContent = 'Save reference';
+      toast(err?.name === 'QuotaExceededError' ? 'Not enough storage for this file.' : `Couldn't save: ${err?.message || err}`);
+      return;
+    }
+    closeSheet();
+    await viewExercise(exId);
+    toast('Reference saved');
+  });
+  s.querySelector('[data-act-sheet=ref-remove]')?.addEventListener('click', async () => {
+    if (!confirm('Remove the reference track from this exercise?')) return;
+    const rec = { ...ex, ref: null, updatedAt: Date.now() };
+    await db.saveRef(rec, null);
+    Object.assign(ex, rec);
+    closeSheet();
+    await viewExercise(exId);
+    toast('Reference removed');
+  });
+}
+
+function addVideoSheet(exId) {
+  openSheet(`
+    <div class="sheet-body">
+      <h2>Add video</h2>
+      <label class="btn">Record with the iOS Camera<input type="file" accept="video/*" capture="user" class="vh" data-pick data-ex="${exId}"></label>
+      <label class="btn">Choose from library<input type="file" accept="video/*" class="vh" data-pick data-ex="${exId}"></label>
+      <p class="muted small">The iOS Camera can’t play your reference track while it records. Use Record for that.</p>
+      <button type="button" class="btn wide" data-close>Cancel</button>
+    </div>`);
+}
+
+async function viewRecord(id) {
+  const ex = exerciseOf(id);
+  if (!ex) { location.hash = '#/'; return; }
+  if (!canRecordInApp()) { location.hash = `#/ex/${id}`; return; }
+  const refBlob = ex.ref ? await db.get('refs', id) : null;
+  viewCleanup = mountRecorder(app, {
+    title: ex.name,
+    backHref: `#/ex/${id}`,
+    refURL: refBlob ? pageURL(refBlob) : null,
+    refName: ex.ref?.name,
+    onRecorded: (blob, seconds) => attemptSheet(blob, id, {
+      recorded: true,
+      duration: seconds,
+      afterSave: () => toast('Attempt saved. Ready for the next take.'),
+    }),
   });
 }
 
@@ -445,10 +600,10 @@ async function viewCompare(id) {
 async function viewSettings() {
   const est = await navigator.storage?.estimate?.().catch(() => null);
   const persisted = await navigator.storage?.persisted?.().catch(() => false);
-  const unbacked = state.attempts.filter((a) => !a.backedUpAt).length;
-  const status = !state.attempts.length
-    ? 'No recordings yet.'
-    : unbacked ? `${plural(unbacked, 'recording')} ${unbacked === 1 ? "isn't" : "aren't"} backed up yet.` : 'Every recording is backed up.';
+  const c = unbackedCounts();
+  const unbacked = c.recs + c.refs;
+  const anything = state.attempts.length || state.exercises.some((e) => e.ref);
+  const status = !anything ? 'No recordings yet.' : unbacked ? unbackedText(c) : 'Everything is backed up.';
 
   app.innerHTML = `
     <header class="top sub"><a class="back" href="#/">${icons.back}<span>Practice</span></a></header>
@@ -456,11 +611,11 @@ async function viewSettings() {
 
     <section class="block">
       <h2>Back up</h2>
-      <p>Your recordings are stored only on this phone. A backup is a .zip file with your videos, scores and notes. When the share sheet opens, choose Save to Files and pick a folder in iCloud Drive.</p>
+      <p>Your recordings are stored only on this phone. A backup is a .zip file with your videos, reference tracks, scores and notes. When the share sheet opens, choose Save to Files and pick a folder in iCloud Drive.</p>
       <p class="status">${status}${state.lastBackupAt ? ` Last backup ${esc(fmtRelative(state.lastBackupAt))}.` : ''}</p>
       <div class="stack">
         <button class="btn primary" data-act="prep-backup" data-scope="new" ${unbacked ? '' : 'disabled'}>Back up new recordings</button>
-        <button class="btn" data-act="prep-backup" data-scope="all" ${state.attempts.length ? '' : 'disabled'}>Back up everything</button>
+        <button class="btn" data-act="prep-backup" data-scope="all" ${state.exercises.length ? '' : 'disabled'}>Back up everything</button>
       </div>
       <div id="backup-out" aria-live="polite"></div>
     </section>
@@ -502,6 +657,7 @@ async function viewSettings() {
 async function prepBackup(scope, btn) {
   const out = document.getElementById('backup-out');
   const chosen = (scope === 'new' ? state.attempts.filter((a) => !a.backedUpAt) : state.attempts).slice().sort(byDate);
+  const refExs = state.exercises.filter((e) => e.ref && (scope === 'all' || !e.ref.backedUpAt));
   app.querySelectorAll('[data-act=prep-backup]').forEach((b) => (b.disabled = true));
   out.innerHTML = '<p class="progress">Preparing backup…</p>';
   try {
@@ -514,12 +670,12 @@ async function prepBackup(scope, btn) {
       if (cur.length && curSize + sizes[i] > PART_BYTES) { groups.push(cur); cur = []; curSize = 0; }
       cur.push(a); curSize += sizes[i];
     });
-    if (cur.length) groups.push(cur);
+    if (cur.length || !groups.length) groups.push(cur);
 
     const exportedAt = Date.now();
     const data = {
       app: 'singing-practice', version: 1, exportedAt,
-      exercises: state.exercises,
+      exercises: state.exercises.map((e) => (e.ref ? { ...e, refFile: refPath(e) } : e)),
       attempts: state.attempts.map((a) => ({ ...a, file: `videos/${exName(a.exerciseId)}/${videoFileName(a)}` })),
     };
     const dataBlob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
@@ -527,6 +683,12 @@ async function prepBackup(scope, btn) {
 
     for (let g = 0; g < groups.length; g++) {
       const entries = [{ name: 'data.json', blob: dataBlob }];
+      if (g === 0) {
+        for (const e of refExs) {
+          const r = await db.get('refs', e.id);
+          if (r) entries.push({ name: refPath(e), blob: r });
+        }
+      }
       for (const a of groups[g]) {
         const v = await db.get('videos', a.id);
         if (v) entries.push({ name: `videos/${exName(a.exerciseId)}/${videoFileName(a)}`, blob: v });
@@ -539,9 +701,10 @@ async function prepBackup(scope, btn) {
       const suffix = groups.length > 1 ? `-part${g + 1}of${groups.length}` : '';
       files.push(new File([zip], `singing-backup-${day}${suffix}.zip`, { type: 'application/zip' }));
     }
-    pendingBackup = { files, ids: chosen.map((a) => a.id), at: exportedAt };
+    pendingBackup = { files, ids: chosen.map((a) => a.id), refIds: refExs.map((e) => e.id), at: exportedAt };
     const total = files.reduce((s, f) => s + f.size, 0);
-    out.innerHTML = `<p class="progress">Backup ready: ${plural(chosen.length, 'recording')}, ${fmtBytes(total)}${files.length > 1 ? `, in ${files.length} files` : ''}.</p>
+    const what = [chosen.length ? plural(chosen.length, 'recording') : '', refExs.length ? plural(refExs.length, 'reference track') : ''].filter(Boolean).join(' and ') || 'Scores and notes';
+    out.innerHTML = `<p class="progress">Backup ready: ${what}, ${fmtBytes(total)}${files.length > 1 ? `, in ${files.length} files` : ''}.</p>
       <button class="btn primary" data-act="share-backup">Save backup</button>`;
   } catch (err) {
     out.innerHTML = `<p class="progress warn">Couldn't prepare the backup: ${esc(err?.message || err)}</p>`;
@@ -551,7 +714,7 @@ async function prepBackup(scope, btn) {
 
 async function shareBackup() {
   if (!pendingBackup) return;
-  const { files, ids, at } = pendingBackup;
+  const { files, ids, refIds, at } = pendingBackup;
   try {
     await shareFiles(files, 'Singing practice backup');
   } catch (err) {
@@ -562,6 +725,9 @@ async function shareBackup() {
   const marked = state.attempts.filter((a) => ids.includes(a.id));
   marked.forEach((a) => (a.backedUpAt = at));
   await db.putMany('attempts', marked);
+  const refMarked = state.exercises.filter((e) => e.ref && refIds.includes(e.id));
+  refMarked.forEach((e) => (e.ref.backedUpAt = at));
+  if (refMarked.length) await db.putMany('exercises', refMarked);
   state.lastBackupAt = at;
   await db.put('meta', at, 'lastBackupAt');
   pendingBackup = null;
@@ -572,7 +738,7 @@ async function shareBackup() {
 async function restore(fileList) {
   const out = document.getElementById('restore-out');
   const files = [...fileList];
-  let addedEx = 0, addedAtt = 0, addedVid = 0;
+  let addedEx = 0, addedAtt = 0, addedVid = 0, addedRefs = 0;
   const problems = [];
   for (const [fi, f] of files.entries()) {
     out.innerHTML = `<p class="progress">Reading ${esc(f.name)}${files.length > 1 ? ` (${fi + 1} of ${files.length})` : ''}…</p>`;
@@ -584,10 +750,17 @@ async function restore(fileList) {
       const data = JSON.parse(await (await entryData(dataEntry)).text());
       if (data.app !== 'singing-practice') throw new Error('not a backup from this app');
 
-      for (const ex of data.exercises || []) {
-        const local = exerciseOf(ex.id);
-        if (!local) { await db.put('exercises', ex); state.exercises.push(ex); addedEx++; }
+      for (const { refFile, ...ex } of data.exercises || []) {
+        let local = exerciseOf(ex.id);
+        if (!local) { await db.put('exercises', ex); state.exercises.push(ex); local = ex; addedEx++; }
         else if ((ex.updatedAt || 0) > (local.updatedAt || 0)) { Object.assign(local, ex); await db.put('exercises', local); }
+        const refEntry = refFile && byName.get(refFile);
+        if (refEntry && ex.ref && !(await db.has('refs', ex.id))) {
+          if (!local.ref) local.ref = { ...ex.ref };
+          local.ref.backedUpAt = local.ref.backedUpAt || data.exportedAt;
+          await db.saveRef(local, await entryData(refEntry, ex.ref.mime || 'audio/mp4'));
+          addedRefs++;
+        }
       }
       for (const raw of data.attempts || []) {
         const { file: path, ...a } = raw;
@@ -614,9 +787,10 @@ async function restore(fileList) {
   if (addedEx) parts.push(plural(addedEx, 'exercise'));
   if (addedAtt) parts.push(plural(addedAtt, 'attempt'));
   if (addedVid) parts.push(plural(addedVid, 'video'));
+  if (addedRefs) parts.push(plural(addedRefs, 'reference track'));
   const summary = parts.length ? `Restored ${parts.join(', ')}.` : 'Nothing new to restore: everything in the backup is already on this phone.';
   out.innerHTML = `<p class="progress">${esc(summary)}</p>${problems.map((p) => `<p class="progress warn">Couldn't read ${esc(p)}</p>`).join('')}`;
-  if (addedVid) requestPersist();
+  if (addedVid || addedRefs) requestPersist();
 }
 
 /* ---------- events ---------- */
@@ -627,6 +801,8 @@ app.addEventListener('click', async (e) => {
   const act = el.dataset.act;
   const route = parseRoute();
   if (act === 'new-ex') exerciseSheet(null);
+  else if (act === 'ref-sheet') refSheet(route.id);
+  else if (act === 'add-video') addVideoSheet(route.id);
   else if (act === 'edit-ex') exerciseSheet(exerciseOf(route.id));
   else if (act === 'sort') { state.sort = el.dataset.sort; await viewExercise(route.id); }
   else if (act === 'prep-backup') prepBackup(el.dataset.scope, el);
@@ -656,15 +832,18 @@ app.addEventListener('click', async (e) => {
   }
 });
 
-app.addEventListener('change', (e) => {
+function onChange(e) {
   const input = e.target;
   if (input.matches('[data-pick]') && input.files?.[0]) {
-    attemptSheet(input.files[0], parseRoute().id);
+    const file = input.files[0];
+    attemptSheet(file, input.dataset.ex || parseRoute().id);
     input.value = '';
   } else if (input.matches('[data-restore]') && input.files?.length) {
     restore(input.files).finally(() => { input.value = ''; });
   }
-});
+}
+app.addEventListener('change', onChange);
+sheet.addEventListener('change', onChange);
 
 /* ---------- routing ---------- */
 
@@ -673,13 +852,20 @@ function parseRoute() {
   return { view: view || 'home', id, sub };
 }
 
+let viewCleanup = null;
+let reloadPending = false;
+
 async function render() {
+  if (reloadPending) { location.reload(); return; }
+  viewCleanup?.();
+  viewCleanup = null;
   closeSheet();
   pageURLs.forEach(URL.revokeObjectURL);
   pageURLs = [];
   app._blob = null;
   const { view, id, sub } = parseRoute();
   if (view === 'ex' && sub === 'compare') await viewCompare(id);
+  else if (view === 'ex' && sub === 'record') await viewRecord(id);
   else if (view === 'ex') await viewExercise(id);
   else if (view === 'a') await viewAttempt(id);
   else if (view === 'settings') await viewSettings();
@@ -702,5 +888,14 @@ async function start() {
   await render();
 }
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+if ('serviceWorker' in navigator) {
+  // Load new versions of the app as soon as they're installed, but never mid-recording.
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) return;
+    if (sheet.open || document.body.classList.contains('rec-mode')) reloadPending = true;
+    else location.reload();
+  });
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
 start();

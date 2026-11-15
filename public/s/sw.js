@@ -1,14 +1,15 @@
 // Caches the app's own files so it opens offline. Bump VERSION when shipping changes.
 // Recordings never pass through here: they live in IndexedDB.
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CACHE = `singing-${VERSION}`;
 const SHELL = [
-  './', './index.html', './styles.css', './app.js', './db.js', './zip.js',
+  './', './index.html', './styles.css', './app.js', './db.js', './zip.js', './recorder.js',
   './manifest.webmanifest', './icons/icon.svg', './icons/icon-180.png', './icons/icon-192.png', './icons/icon-512.png',
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // cache: 'reload' skips the browser's HTTP cache, so a new version never caches stale files.
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
