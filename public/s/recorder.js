@@ -6,7 +6,16 @@ import { HOP, decimate, detect, smooth, noteName, isNatural } from './pitch.js';
 
 const VIDEO_TYPES = ['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
 const AUDIO_TYPES = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'];
-const VOICE = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+const VOICE = { echoCancellation: false, noiseSuppression: false, autoGainControl: false, sampleRate: 48000, channelCount: 1 };
+const AUDIO_BPS = 256000;
+
+// Small per-device preferences. Storage can be unavailable, so never let it throw.
+export function getPref(key, fallback) {
+  try { const v = localStorage.getItem(`singing:${key}`); return v == null ? fallback : JSON.parse(v); } catch { return fallback; }
+}
+export function setPref(key, value) {
+  try { localStorage.setItem(`singing:${key}`, JSON.stringify(value)); } catch { /* ignore */ }
+}
 
 export const canRecordInApp = () => !!(navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
 
@@ -39,9 +48,10 @@ export function mountRecorder(root, { title, backHref, refURL, refName, refPitch
         <div class="rec-top">
           <a class="rec-done" href="${backHref}">Done</a>
           <span class="rec-time" aria-live="off"></span>
-          <span class="rec-spacer"></span>
+          <button type="button" class="rec-chip" data-pitch-toggle aria-pressed="false">Pitch</button>
         </div>
         <p class="rec-msg">Starting camera…</p>
+        <p class="rec-clip" role="status"></p>
         <div class="tuner">
           <canvas class="tuner-trace" aria-hidden="true"></canvas>
           <div class="tuner-read" aria-live="off">
@@ -74,7 +84,21 @@ export function mountRecorder(root, { title, backHref, refURL, refName, refPitch
   const preview = q('.rec-preview'), msg = q('.rec-msg'), time = q('.rec-time'), btn = q('.rec-btn');
   const ref = q('.rec-ref audio'), listen = q('[data-listen]'), playRef = q('[data-playref]'), loop = q('[data-loop]');
   let stream = null, recorder = null, chunks = [], t0 = 0, timer = null, closed = false, discard = false;
-  const tuner = mountTuner(root.querySelector('.tuner'), { ref, refPitch });
+  const tuner = mountTuner(root.querySelector('.tuner'), { ref, refPitch, clipEl: q('.rec-clip') });
+  const pitchBtn = q('[data-pitch-toggle]');
+  let pitchOn = getPref('livePitch', true);
+  const syncPitchBtn = () => {
+    pitchBtn.setAttribute('aria-pressed', String(pitchOn));
+    pitchBtn.textContent = pitchOn ? 'Pitch on' : 'Pitch off';
+  };
+  syncPitchBtn();
+  pitchBtn.addEventListener('click', () => {
+    if (recorder?.state === 'recording') return;
+    pitchOn = !pitchOn;
+    setPref('livePitch', pitchOn);
+    syncPitchBtn();
+    if (pitchOn) tuner.start(); else tuner.stop();
+  });
 
   setAudioSession();
   navigator.mediaDevices.getUserMedia({
@@ -85,7 +109,7 @@ export function mountRecorder(root, { title, backHref, refURL, refName, refPitch
     stream = s;
     preview.srcObject = s;
     preview.play().catch(() => {});
-    tuner.attach(s);
+    tuner.attach(s, pitchOn);
     msg.textContent = '';
     btn.disabled = false;
   }).catch((err) => { msg.textContent = permissionMessage(err); });
@@ -95,7 +119,7 @@ export function mountRecorder(root, { title, backHref, refURL, refName, refPitch
   ref?.addEventListener('pause', syncListen);
   ref?.addEventListener('ended', syncListen);
   listen?.addEventListener('click', () => {
-    tuner.start();
+    if (pitchOn) tuner.start();
     if (recorder?.state === 'recording') return;
     if (ref.paused) { ref.loop = loop.checked; ref.play().catch(() => {}); } else ref.pause();
   });
@@ -103,22 +127,31 @@ export function mountRecorder(root, { title, backHref, refURL, refName, refPitch
   function start() {
     chunks = [];
     discard = false;
-    tuner.start();
+    if (pitchOn) tuner.start();
+    pitchBtn.disabled = true;
     let refOffset = null;
     const type = pickType(VIDEO_TYPES);
-    recorder = new MediaRecorder(stream, { ...(type ? { mimeType: type } : {}), audioBitsPerSecond: 160000, videoBitsPerSecond: 2500000 });
+    recorder = new MediaRecorder(stream, { ...(type ? { mimeType: type } : {}), audioBitsPerSecond: AUDIO_BPS, videoBitsPerSecond: 2500000 });
     recorder.ondataavailable = (e) => { if (e.data?.size) chunks.push(e.data); };
     recorder.onstop = () => {
       clearInterval(timer);
       const seconds = (performance.now() - t0) / 1000;
       setIdle();
       const pitch = tuner.stopTrack();
+      pitchBtn.disabled = false;
+      const st = stream.getAudioTracks()[0]?.getSettings?.() || {};
+      const recInfo = {
+        mime: recorder.mimeType || type, sampleRate: st.sampleRate ?? null, channels: st.channelCount ?? null,
+        echoCancellation: st.echoCancellation ?? null, noiseSuppression: st.noiseSuppression ?? null, autoGainControl: st.autoGainControl ?? null,
+        bitrate: recorder.audioBitsPerSecond || AUDIO_BPS, livePitch: pitchOn, mic: stream.getAudioTracks()[0]?.label || '',
+      };
       if (discard || !chunks.length) return;
       onRecorded(new Blob(chunks, { type: recorder.mimeType || type || 'video/mp4' }), seconds, {
         pitch,
         withRef: refOffset != null,
         refOffset: refOffset ?? 0,
         refLoop: !!ref?.loop,
+        recInfo,
       });
     };
     // Start the reference in the same tap so iOS allows playback.
@@ -169,14 +202,14 @@ export function mountRecorder(root, { title, backHref, refURL, refName, refPitch
 
 // Live pitch display: current note, cents meter and a scrolling trace. While the
 // reference plays, its pitch line (if analysed) scrolls in from the right.
-function mountTuner(el, { ref, refPitch }) {
+function mountTuner(el, { ref, refPitch, clipEl }) {
   const canvas = el.querySelector('canvas');
   const noteEl = el.querySelector('.tuner-note'), centsEl = el.querySelector('.tuner-cents');
   const dot = el.querySelector('.tuner-meter i'), startBtn = el.querySelector('.tuner-start');
   const g = canvas.getContext('2d');
   const PAST = 4, FUTURE = 1.5;
   let stream = null, ctx = null, analyser = null, buf = null, raf = 0, frame = 0;
-  let history = [], recent = [], center = null, track = null, trackT0 = 0;
+  let history = [], recent = [], center = null, track = null, trackT0 = 0, clipUntil = 0;
 
   startBtn.addEventListener('click', () => start());
 
@@ -185,7 +218,11 @@ function mountTuner(el, { ref, refPitch }) {
     if (!ctx) {
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return;
-      ctx = new AC();
+      // Match the microphone's rate: a mismatch makes iOS resample the input, which can degrade the recording.
+      const rate = stream.getAudioTracks()[0]?.getSettings?.().sampleRate;
+      try { ctx = new AC(rate ? { sampleRate: rate, latencyHint: 'playback' } : { latencyHint: 'playback' }); } catch { ctx = new AC(); }
+      const c = ctx;
+      c.onstatechange = () => { if (ctx === c) el.classList.toggle('on', c.state === 'running'); };
       const src = ctx.createMediaStreamSource(stream);
       analyser = ctx.createAnalyser();
       analyser.fftSize = 2048;
@@ -196,8 +233,19 @@ function mountTuner(el, { ref, refPitch }) {
       buf = new Float32Array(analyser.fftSize);
       raf = requestAnimationFrame(loop);
     }
-    ctx.resume?.().catch(() => {});
-    el.classList.add('on');
+    el.classList.remove('disabled');
+    ctx.resume?.().then(() => el.classList.toggle('on', ctx?.state === 'running')).catch(() => {});
+  }
+
+  function stop() {
+    cancelAnimationFrame(raf);
+    raf = 0;
+    ctx?.close().catch(() => {});
+    ctx = null;
+    history = []; recent = []; center = null;
+    el.classList.remove('on', 'voiced');
+    el.classList.add('disabled');
+    if (clipEl) clipEl.textContent = '';
   }
 
   function loop(now) {
@@ -206,6 +254,10 @@ function mountTuner(el, { ref, refPitch }) {
     frame++;
     if (frame % 2 === 0) {
       analyser.getFloatTimeDomainData(buf);
+      let peak = 0;
+      for (let i = 0; i < buf.length; i++) { const v = Math.abs(buf[i]); if (v > peak) peak = v; }
+      if (peak > 0.98) clipUntil = now + 2500;
+      if (clipEl) clipEl.textContent = now < clipUntil ? 'Too loud for the microphone. Hold the phone a bit further away.' : '';
       const [x, sr] = decimate(buf, ctx.sampleRate);
       const m = detect(x, sr);
       recent.push(m);
@@ -295,16 +347,17 @@ function mountTuner(el, { ref, refPitch }) {
   }
 
   return {
-    attach(s) { stream = s; el.classList.add('ready'); },
+    attach(s, on) { stream = s; el.classList.add('ready'); if (on) start(); else el.classList.add('disabled'); },
     start,
-    startTrack(t) { track = []; trackT0 = t; },
+    stop,
+    startTrack(t) { track = ctx ? [] : null; trackT0 = t; },
     stopTrack() {
       if (!track) return null;
       const out = Array.from({ length: track.length }, (_, i) => track[i] ?? null);
       track = null;
       return out.some((v) => v != null) ? { hop: HOP, midi: smooth(out) } : null;
     },
-    close() { cancelAnimationFrame(raf); ctx?.close().catch(() => {}); },
+    close() { stop(); },
   };
 }
 
@@ -332,7 +385,7 @@ export function mountAudioRecorder(root, { onRecorded }) {
     if (closed) { stream.getTracks().forEach((t) => t.stop()); return; }
     const type = pickType(AUDIO_TYPES);
     chunks = [];
-    recorder = new MediaRecorder(stream, { ...(type ? { mimeType: type } : {}), audioBitsPerSecond: 160000 });
+    recorder = new MediaRecorder(stream, { ...(type ? { mimeType: type } : {}), audioBitsPerSecond: AUDIO_BPS });
     recorder.ondataavailable = (e) => { if (e.data?.size) chunks.push(e.data); };
     recorder.onstop = () => {
       clearInterval(timer);

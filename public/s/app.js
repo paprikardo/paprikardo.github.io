@@ -1,6 +1,6 @@
 import * as db from './db.js';
 import { makeZip, readZip, entryData } from './zip.js';
-import { canRecordInApp, mountRecorder, mountAudioRecorder } from './recorder.js';
+import { canRecordInApp, mountRecorder, mountAudioRecorder, getPref, setPref } from './recorder.js';
 import { HOP, analyzeBlob, compare, range, noteName, isNatural } from './pitch.js';
 
 const app = document.getElementById('app');
@@ -350,6 +350,7 @@ function attemptSheet(file, exId, opts = {}) {
       mime, size: file.size, fileName: file.name || '', backedUpAt: null,
       pitch: opts.meta?.pitch ?? null,
       withRef: !!opts.meta?.withRef, refOffset: opts.meta?.refOffset ?? 0, refLoop: !!opts.meta?.refLoop,
+      recInfo: opts.meta?.recInfo ?? null,
     };
     let stored;
     try {
@@ -572,14 +573,27 @@ async function viewRecord(id) {
 }
 
 function pitchSection(a, ex, hasVideo) {
-  const head = (extra = '') => `<div class="pitch-head"><h2>Pitch</h2>${extra}</div>`;
+  const body = pitchBody(a, ex, hasVideo);
+  if (!body) return '';
+  const shown = getPref('pitchGraph', true);
+  return `<section class="pitch${shown ? '' : ' collapsed'}"${body.pps ? ` data-pps="${body.pps}"` : ''}>
+    <div class="pitch-head">
+      <h2>Pitch</h2>
+      <button type="button" class="text-btn" data-act="toggle-pitch" aria-expanded="${shown}">${shown ? 'Hide' : 'Show'}</button>
+    </div>
+    <div class="pitch-body">${body.html}</div>
+  </section>`;
+}
+
+function pitchBody(a, ex, hasVideo) {
+  const wrap = (html, pps) => ({ html, pps });
   if (!a.pitch) {
-    return hasVideo ? `<section class="pitch">${head()}<button class="btn" data-act="analyze">Show pitch</button><p class="progress" data-analyze-msg></p></section>` : '';
+    return hasVideo ? wrap('<button class="btn" data-act="analyze">Analyse pitch</button><p class="progress" data-analyze-msg></p>') : null;
   }
-  if (a.pitch.failed) return `<section class="pitch">${head()}<p class="muted small">This browser couldn’t read the sound of this video.</p></section>`;
+  if (a.pitch.failed) return wrap('<p class="muted small">This browser couldn’t read the sound of this video.</p>');
   const you = a.pitch;
   const r = range(you);
-  if (!r) return `<section class="pitch">${head()}<p class="muted small">No clear sung pitch was detected in this take.</p></section>`;
+  if (!r) return wrap('<p class="muted small">No clear sung pitch was detected in this take.</p>');
 
   // Reference sampled on the attempt's time grid, moved into your octave.
   const refTrack = a.withRef && ex.ref?.pitch && !ex.ref.pitch.failed ? ex.ref.pitch : null;
@@ -631,12 +645,12 @@ function pitchSection(a, ex, hasVideo) {
 
   const cmp = refVals ? compare(you, refTrack, { offset: a.refOffset || 0, loop: a.refLoop }) : null;
   const octText = octave ? ` (shown ${Math.abs(octave) === 1 ? 'an octave' : `${Math.abs(octave)} octaves`} ${octave < 0 ? 'lower' : 'higher'})` : '';
-  const legend = refVals ? `<span class="legend"><span class="key you"></span>You <span class="key ref"></span>Reference${octText}</span>` : '';
+  const legend = refVals ? `<p class="legend"><span class="key you"></span>You <span class="key ref"></span>Reference${octText}</p>` : '';
   const stats = [`Range ${noteName(r.lo)} to ${noteName(r.hi)}.`];
   if (cmp) stats.push(`Within a quarter tone of the reference ${Math.round(cmp.share * 100)}% of the time you were both sounding.`);
 
-  return `<section class="pitch" data-pps="${pps}">
-    ${head(legend)}
+  return wrap(`
+    ${legend}
     <div class="pitch-wrap">
       <svg class="pitch-axis" width="34" height="${H}" aria-hidden="true">${labels}</svg>
       <div class="pitch-scroll">
@@ -648,8 +662,19 @@ function pitchSection(a, ex, hasVideo) {
         </svg>
       </div>
     </div>
-    <p class="pitch-stats">${stats.join(' ')} Tap the graph to jump there in the video.</p>
-  </section>`;
+    <p class="pitch-stats">${stats.join(' ')} Tap the graph to jump there in the video.</p>`, pps);
+}
+
+function describeRecInfo(r) {
+  const codec = /webm/.test(r.mime || '') ? 'Opus' : 'AAC';
+  const parts = [`Audio: ${codec}`];
+  if (r.sampleRate) parts.push(`${r.sampleRate / 1000} kHz`);
+  if (r.channels) parts.push(r.channels === 1 ? 'mono' : `${r.channels} channels`);
+  if (r.bitrate) parts.push(`about ${Math.round(r.bitrate / 1000)} kbps`);
+  const processing = [r.echoCancellation, r.noiseSuppression, r.autoGainControl].some((v) => v === true) ? 'voice processing on' : 'voice processing off';
+  parts.push(processing);
+  if (r.mic) parts.push(`mic: ${r.mic}`);
+  return `${parts.join(', ')}.`;
 }
 
 function bindPitch(video) {
@@ -687,6 +712,7 @@ async function viewAttempt(id) {
       ? `<video class="player" src="${pageURL(blob)}" controls playsinline preload="auto"></video>`
       : '<p class="missing">This video isn’t on this phone. Restore the backup that contains it under Backup and storage.</p>'}
     <p class="att-when">${esc(fmtDay(a.createdAt))}, ${esc(fmtTime(a.createdAt))}${a.duration ? `, ${fmtDur(a.duration)}` : ''}</p>
+    ${a.recInfo ? `<p class="rec-info">${esc(describeRecInfo(a.recInfo))}</p>` : ''}
     ${pitchSection(a, ex, !!blob)}
     <form id="edit-att" class="edit-att">
       ${scorePicker(a.score)}
@@ -957,6 +983,13 @@ app.addEventListener('click', async (e) => {
   const route = parseRoute();
   if (act === 'new-ex') exerciseSheet(null);
   else if (act === 'ref-sheet') refSheet(route.id);
+  else if (act === 'toggle-pitch') {
+    const sec = el.closest('.pitch');
+    const shown = sec.classList.toggle('collapsed') === false;
+    setPref('pitchGraph', shown);
+    el.textContent = shown ? 'Hide' : 'Show';
+    el.setAttribute('aria-expanded', String(shown));
+  }
   else if (act === 'analyze') {
     const a = state.attempts.find((x) => x.id === route.id);
     const msg = app.querySelector('[data-analyze-msg]');

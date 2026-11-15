@@ -328,3 +328,18 @@ body.rec-mode main { max-width: none; padding: 0; }
 .pitch-plot .p-you { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .pitch-plot .playhead { stroke: var(--ink); stroke-width: 1.5; }
 .pitch-stats { color: var(--muted); font-size: 14px; margin-top: 8px; }
+
+/* ---------- toggles & audio info ---------- */
+
+.rec-chip {
+  min-height: 34px; min-width: 60px; padding: 0 12px; border-radius: 999px; font: 600 14px var(--sans);
+  border: 1.5px solid rgb(255 255 255 / 0.55); background: rgb(0 0 0 / 0.3); color: #fff;
+}
+.rec-chip[aria-pressed="true"] { background: #fff; color: #11142a; border-color: #fff; }
+.rec-chip:disabled { opacity: 0.5; }
+.rec-clip { position: absolute; left: 16px; right: 16px; top: calc(env(safe-area-inset-top) + 60px); text-align: center; font-size: 14px; font-weight: 600; color: #fff; }
+.rec-clip:not(:empty) { background: rgb(161 74 0 / 0.85); padding: 8px 12px; border-radius: 10px; }
+.tuner.disabled { display: none; }
+.pitch.collapsed .pitch-body { display: none; }
+.pitch .legend { margin: -2px 0 8px; }
+.rec-info { color: var(--muted); font-size: 13px; margin: -12px 0 18px; }
