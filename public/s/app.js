@@ -1,6 +1,7 @@
 import * as db from './db.js';
 import { makeZip, readZip, entryData } from './zip.js';
 import { canRecordInApp, mountRecorder, mountAudioRecorder } from './recorder.js';
+import { HOP, analyzeBlob, compare, range, noteName, isNatural } from './pitch.js';
 
 const app = document.getElementById('app');
 const sheet = document.getElementById('sheet');
@@ -283,6 +284,7 @@ async function viewExercise(id) {
   const sorted = [...list].sort(state.sort === 'best' ? (a, b) => b.score - a.score || b.createdAt - a.createdAt : (a, b) => b.createdAt - a.createdAt);
   const videoFlags = await Promise.all(sorted.map((a) => db.has('videos', a.id)));
   const refBlob = ex.ref ? await db.get('refs', id) : null;
+  if (refBlob && !ex.ref.pitch) analyzeRef(ex);
 
   app.innerHTML = `
     <header class="top sub">
@@ -346,11 +348,14 @@ function attemptSheet(file, exId, opts = {}) {
       score: Number(form.score.value), note: form.note.value.trim(),
       duration: opts.duration ?? (Number.isFinite(video.duration) ? video.duration : null),
       mime, size: file.size, fileName: file.name || '', backedUpAt: null,
+      pitch: opts.meta?.pitch ?? null,
+      withRef: !!opts.meta?.withRef, refOffset: opts.meta?.refOffset ?? 0, refLoop: !!opts.meta?.refLoop,
     };
+    let stored;
     try {
       // Copy the bytes so the stored video doesn't depend on the picker's temporary file.
-      const blob = new Blob([await file.arrayBuffer()], { type: mime });
-      await db.saveAttempt(attempt, blob, thumb);
+      stored = new Blob([await file.arrayBuffer()], { type: mime });
+      await db.saveAttempt(attempt, stored, thumb);
     } catch (err) {
       submit.disabled = false;
       submit.textContent = 'Save attempt';
@@ -359,6 +364,7 @@ function attemptSheet(file, exId, opts = {}) {
     }
     state.attempts.push(attempt);
     if (state.attempts.length === 1) requestPersist();
+    if (!attempt.pitch) analyzeAttempt(attempt, stored);
     closeSheet();
     if (opts.afterSave) { opts.afterSave(); return; }
     await viewExercise(exId);
@@ -402,6 +408,46 @@ function exerciseSheet(ex) {
   });
 }
 
+const analyzing = new Map();
+
+// Work out an attempt's pitch from its video (for imported videos and older attempts).
+function analyzeAttempt(a, blob, onProgress) {
+  if (analyzing.has(a.id)) return analyzing.get(a.id);
+  const job = (async () => {
+    try {
+      const b = blob || (await db.get('videos', a.id));
+      if (!b) return;
+      a.pitch = await analyzeBlob(b, onProgress);
+    } catch {
+      a.pitch = { hop: HOP, midi: [], failed: true };
+    }
+    await db.put('attempts', a);
+  })().finally(() => analyzing.delete(a.id));
+  analyzing.set(a.id, job);
+  return job;
+}
+
+function analyzeRef(ex) {
+  const key = `ref:${ex.id}`;
+  if (analyzing.has(key) || !ex.ref) return analyzing.get(key);
+  const job = (async () => {
+    const name = ex.ref.name;
+    let pitch;
+    try {
+      const b = await db.get('refs', ex.id);
+      if (!b) return;
+      pitch = await analyzeBlob(b);
+    } catch {
+      pitch = { hop: HOP, midi: [], failed: true };
+    }
+    if (!ex.ref || ex.ref.name !== name) return; // replaced meanwhile
+    ex.ref.pitch = pitch;
+    await db.put('exercises', ex);
+  })().finally(() => analyzing.delete(key));
+  analyzing.set(key, job);
+  return job;
+}
+
 function refSection(ex, refBlob) {
   if (refBlob) {
     return `<section class="ref">
@@ -423,6 +469,7 @@ async function saveRef(exId, blob, meta) {
   await db.saveRef(rec, data);
   Object.assign(ex, rec);
   requestPersist();
+  analyzeRef(ex);
 }
 
 function refSheet(exId) {
@@ -508,16 +555,122 @@ async function viewRecord(id) {
   if (!ex) { location.hash = '#/'; return; }
   if (!canRecordInApp()) { location.hash = `#/ex/${id}`; return; }
   const refBlob = ex.ref ? await db.get('refs', id) : null;
+  if (refBlob && !ex.ref.pitch) await Promise.race([analyzeRef(ex), new Promise((r) => setTimeout(r, 4000))]);
   viewCleanup = mountRecorder(app, {
     title: ex.name,
     backHref: `#/ex/${id}`,
     refURL: refBlob ? pageURL(refBlob) : null,
     refName: ex.ref?.name,
-    onRecorded: (blob, seconds) => attemptSheet(blob, id, {
+    refPitch: ex.ref?.pitch && !ex.ref.pitch.failed ? ex.ref.pitch : null,
+    onRecorded: (blob, seconds, meta) => attemptSheet(blob, id, {
       recorded: true,
       duration: seconds,
+      meta,
       afterSave: () => toast('Attempt saved. Ready for the next take.'),
     }),
+  });
+}
+
+function pitchSection(a, ex, hasVideo) {
+  const head = (extra = '') => `<div class="pitch-head"><h2>Pitch</h2>${extra}</div>`;
+  if (!a.pitch) {
+    return hasVideo ? `<section class="pitch">${head()}<button class="btn" data-act="analyze">Show pitch</button><p class="progress" data-analyze-msg></p></section>` : '';
+  }
+  if (a.pitch.failed) return `<section class="pitch">${head()}<p class="muted small">This browser couldn’t read the sound of this video.</p></section>`;
+  const you = a.pitch;
+  const r = range(you);
+  if (!r) return `<section class="pitch">${head()}<p class="muted small">No clear sung pitch was detected in this take.</p></section>`;
+
+  // Reference sampled on the attempt's time grid, moved into your octave.
+  const refTrack = a.withRef && ex.ref?.pitch && !ex.ref.pitch.failed ? ex.ref.pitch : null;
+  let refVals = null, octave = 0;
+  if (refTrack) {
+    const dur = refTrack.midi.length * refTrack.hop;
+    refVals = you.midi.map((_, i) => {
+      let t = i * you.hop - (a.refOffset || 0);
+      if (t < 0) return null;
+      if (a.refLoop) t %= dur; else if (t >= dur) return null;
+      return refTrack.midi[Math.round(t / refTrack.hop)] ?? null;
+    });
+    const diffs = you.midi.map((m, i) => (m != null && refVals[i] != null ? m - refVals[i] : null)).filter((d) => d != null).sort((p, q) => p - q);
+    if (diffs.length) octave = Math.round(diffs[Math.floor(diffs.length / 2)] / 12);
+    refVals = refVals.map((m) => (m == null ? null : m + 12 * octave));
+    if (!refVals.some((m) => m != null)) refVals = null;
+  }
+
+  let lo = r.lo, hi = r.hi;
+  if (refVals) {
+    const rv = refVals.filter((m) => m != null && m > r.lo - 7 && m < r.hi + 7);
+    if (rv.length) { lo = Math.min(lo, Math.min(...rv)); hi = Math.max(hi, Math.max(...rv)); }
+  }
+  lo = Math.floor(lo) - 1; hi = Math.ceil(hi) + 1;
+  const span = hi - lo;
+  const rowH = Math.max(6, Math.min(14, 210 / span));
+  const H = Math.round(span * rowH) + 8;
+  const pps = 40;
+  const W = Math.max(Math.ceil(you.midi.length * you.hop * pps), Math.min(app.clientWidth || 360, 640) - 74);
+  const y = (m) => (hi - m) * rowH + 4;
+  const clampY = (m) => (m < lo - 0.5 || m > hi + 0.5 ? null : y(m));
+  const path = (vals) => {
+    let d = '', pen = false;
+    vals.forEach((m, i) => {
+      const yy = m == null ? null : clampY(m);
+      if (yy == null) { pen = false; return; }
+      d += `${pen ? 'L' : 'M'}${(i * you.hop * pps).toFixed(1)} ${yy.toFixed(1)}`;
+      pen = true;
+    });
+    return d;
+  };
+
+  let grid = '', labels = '';
+  for (let n = lo; n <= hi; n++) {
+    const nat = isNatural(n);
+    grid += `<line class="${nat ? 'g-nat' : 'g-sharp'}${n % 12 === 0 ? ' g-c' : ''}" x1="0" x2="${W}" y1="${y(n)}" y2="${y(n)}"/>`;
+    if (n % 12 === 0 || (nat && rowH >= 10)) labels += `<text x="30" y="${y(n) + 3.5}" text-anchor="end"${n % 12 === 0 ? ' class="c"' : ''}>${noteName(n)}</text>`;
+  }
+
+  const cmp = refVals ? compare(you, refTrack, { offset: a.refOffset || 0, loop: a.refLoop }) : null;
+  const octText = octave ? ` (shown ${Math.abs(octave) === 1 ? 'an octave' : `${Math.abs(octave)} octaves`} ${octave < 0 ? 'lower' : 'higher'})` : '';
+  const legend = refVals ? `<span class="legend"><span class="key you"></span>You <span class="key ref"></span>Reference${octText}</span>` : '';
+  const stats = [`Range ${noteName(r.lo)} to ${noteName(r.hi)}.`];
+  if (cmp) stats.push(`Within a quarter tone of the reference ${Math.round(cmp.share * 100)}% of the time you were both sounding.`);
+
+  return `<section class="pitch" data-pps="${pps}">
+    ${head(legend)}
+    <div class="pitch-wrap">
+      <svg class="pitch-axis" width="34" height="${H}" aria-hidden="true">${labels}</svg>
+      <div class="pitch-scroll">
+        <svg class="pitch-plot" width="${W}" height="${H}" role="img" aria-label="Pitch over time. ${esc(stats.join(' '))}">
+          ${grid}
+          ${refVals ? `<path class="p-ref" d="${path(refVals)}"/>` : ''}
+          <path class="p-you" d="${path(you.midi)}"/>
+          <line class="playhead" x1="0" x2="0" y1="0" y2="${H}"/>
+        </svg>
+      </div>
+    </div>
+    <p class="pitch-stats">${stats.join(' ')} Tap the graph to jump there in the video.</p>
+  </section>`;
+}
+
+function bindPitch(video) {
+  const sec = app.querySelector('.pitch[data-pps]');
+  if (!video || !sec) return;
+  const pps = Number(sec.dataset.pps);
+  const scroll = sec.querySelector('.pitch-scroll'), plot = sec.querySelector('.pitch-plot'), head = sec.querySelector('.playhead');
+  let raf = 0;
+  const update = (follow = true) => {
+    const x = video.currentTime * pps;
+    head.setAttribute('x1', x); head.setAttribute('x2', x);
+    const vis = scroll.clientWidth;
+    if (follow && (x < scroll.scrollLeft + 10 || x > scroll.scrollLeft + vis - 30)) scroll.scrollLeft = x - vis * 0.25;
+  };
+  const tick = () => { update(); if (!video.paused) raf = requestAnimationFrame(tick); };
+  video.addEventListener('play', () => { cancelAnimationFrame(raf); tick(); });
+  video.addEventListener('seeked', () => update());
+  plot.addEventListener('click', (e) => {
+    const t = (e.clientX - plot.getBoundingClientRect().left) / pps;
+    video.currentTime = Math.max(0, Number.isFinite(video.duration) ? Math.min(t, video.duration) : t);
+    update(false);
   });
 }
 
@@ -534,6 +687,7 @@ async function viewAttempt(id) {
       ? `<video class="player" src="${pageURL(blob)}" controls playsinline preload="auto"></video>`
       : '<p class="missing">This video isn’t on this phone. Restore the backup that contains it under Backup and storage.</p>'}
     <p class="att-when">${esc(fmtDay(a.createdAt))}, ${esc(fmtTime(a.createdAt))}${a.duration ? `, ${fmtDur(a.duration)}` : ''}</p>
+    ${pitchSection(a, ex, !!blob)}
     <form id="edit-att" class="edit-att">
       ${scorePicker(a.score)}
       <label class="field">Note<textarea name="note" rows="3" placeholder="What changed?">${esc(a.note)}</textarea></label>
@@ -561,6 +715,7 @@ async function viewAttempt(id) {
   });
 
   const video = app.querySelector('video.player');
+  bindPitch(video);
   if (video && !hasThumb) {
     video.addEventListener('timeupdate', function once() {
       if (video.currentTime < 0.3) return;
@@ -802,6 +957,15 @@ app.addEventListener('click', async (e) => {
   const route = parseRoute();
   if (act === 'new-ex') exerciseSheet(null);
   else if (act === 'ref-sheet') refSheet(route.id);
+  else if (act === 'analyze') {
+    const a = state.attempts.find((x) => x.id === route.id);
+    const msg = app.querySelector('[data-analyze-msg]');
+    el.disabled = true;
+    await analyzeAttempt(a, null, (f) => { if (msg) msg.textContent = `Analysing… ${Math.round(f * 100)}%`; });
+    const ex = exerciseOf(a.exerciseId);
+    if (ex?.ref && !ex.ref.pitch) await analyzeRef(ex);
+    if (parseRoute().id === a.id) await render();
+  }
   else if (act === 'add-video') addVideoSheet(route.id);
   else if (act === 'edit-ex') exerciseSheet(exerciseOf(route.id));
   else if (act === 'sort') { state.sort = el.dataset.sort; await viewExercise(route.id); }
