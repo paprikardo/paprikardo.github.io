@@ -1,6 +1,6 @@
 // Caches the app's own files so it opens offline. Bump VERSION when shipping changes.
 // Recordings never pass through here: they live in IndexedDB.
-const VERSION = 'v4';
+const VERSION = 'v5';
 const CACHE = `singing-${VERSION}`;
 const SHELL = [
   './', './index.html', './styles.css', './app.js', './db.js', './zip.js', './recorder.js', './pitch.js',

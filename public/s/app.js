@@ -464,7 +464,9 @@ const AUDIO_EXT = /\.(mp3|m4a|aac|wav|aif|aiff|caf|flac|ogg|opus|mp4|mov|m4v|web
 
 async function saveRef(exId, blob, meta) {
   const ex = exerciseOf(exId);
-  const mime = blob.type || (/\.mp3$/i.test(meta.name) ? 'audio/mpeg' : 'audio/mp4');
+  const ext = (/\.([a-z0-9]+)$/i.exec(meta.name || '') || [])[1]?.toLowerCase();
+  const byExt = { mp3: 'audio/mpeg', m4a: 'audio/mp4', aac: 'audio/aac', wav: 'audio/wav', aif: 'audio/aiff', aiff: 'audio/aiff', caf: 'audio/x-caf', flac: 'audio/flac', ogg: 'audio/ogg', opus: 'audio/ogg', mp4: 'video/mp4', mov: 'video/quicktime', m4v: 'video/mp4', webm: 'video/webm' };
+  const mime = blob.type || byExt[ext] || 'audio/mp4';
   const data = new Blob([await blob.arrayBuffer()], { type: mime });
   const rec = { ...ex, ref: { name: meta.name, mime, size: data.size, addedAt: Date.now(), backedUpAt: null }, updatedAt: Date.now() };
   await db.saveRef(rec, data);
@@ -480,8 +482,9 @@ function refSheet(exId) {
       <h2>Reference track</h2>
       <p class="muted">Something to sing along to: a backing track, the original song, or your teacher singing the phrase. You can play it while you record.</p>
       ${ex.ref ? `<p>Current: <strong>${esc(ex.ref.name)}</strong></p>` : ''}
-      <label class="btn">Choose a file<input type="file" accept="audio/*,video/*" class="vh" data-ref-file></label>
-      <p class="muted small">Audio files from the Files app, or a video from Photos (only its sound is used). For a Voice Memo, first tap Share → Save to Files in Voice Memos.</p>
+      <label class="btn">Choose an audio file<input type="file" class="vh" data-ref-file></label>
+      <label class="btn">Choose a video<input type="file" accept="video/*" class="vh" data-ref-file></label>
+      <p class="muted small">Audio files (mp3, m4a, wav, aac) come from the Files app; for a video, only its sound is used. For a Voice Memo, first tap Share → Save to Files in Voice Memos.</p>
       <h3>Or record one now</h3>
       <div data-mini-root></div>
       <div class="mini-preview"></div>
@@ -498,6 +501,11 @@ function refSheet(exId) {
     pending = { blob, name };
     preview.innerHTML = `<p class="small">${esc(name)}</p><audio controls preload="metadata" src="${sheetURL(blob)}"></audio>`;
     save.disabled = false;
+    preview.querySelector('audio').addEventListener('error', () => {
+      pending = null;
+      save.disabled = true;
+      preview.innerHTML = `<p class="small warn">This phone can't play “${esc(name)}”. Try an mp3, m4a or wav file.</p>`;
+    });
   };
   if (canRecordInApp()) {
     sheetCleanup = mountAudioRecorder(s.querySelector('[data-mini-root]'), {
@@ -506,13 +514,14 @@ function refSheet(exId) {
   } else {
     s.querySelector('[data-mini-root]').innerHTML = '<p class="muted small">Recording isn’t available in this browser.</p>';
   }
-  s.querySelector('[data-ref-file]').addEventListener('change', (e) => {
+  s.querySelectorAll('[data-ref-file]').forEach((input) => input.addEventListener('change', (e) => {
     const f = e.target.files?.[0];
+    e.target.value = '';
     if (!f) return;
-    const ok = /^(audio|video)\//.test(f.type) || AUDIO_EXT.test(f.name);
-    if (!ok) { toast("That file isn't audio or video."); return; }
+    const ok = /^(audio|video)\//.test(f.type) || AUDIO_EXT.test(f.name || '');
+    if (!ok) { toast(`“${f.name}” isn't an audio or video file.`); return; }
     offer(f, f.name || 'Reference track');
-  });
+  }));
   save.addEventListener('click', async () => {
     if (!pending) return;
     save.disabled = true;
